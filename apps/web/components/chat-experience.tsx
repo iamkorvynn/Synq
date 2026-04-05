@@ -205,6 +205,25 @@ function conversationAmbientClass(conversation?: Conversation | null) {
   return "synq-ambient synq-ambient--sealed";
 }
 
+function DockToggleIcon({ collapsed }: { collapsed: boolean }) {
+  return (
+    <svg
+      aria-hidden="true"
+      viewBox="0 0 16 16"
+      className="h-4 w-4"
+      fill="none"
+      stroke="currentColor"
+      strokeWidth="1.5"
+      strokeLinecap="round"
+      strokeLinejoin="round"
+    >
+      <rect x="2.25" y="2.25" width="11.5" height="11.5" rx="2.5" />
+      <path d="M10.5 4.5v7" />
+      {collapsed ? <path d="M8 8h2.5" /> : <path d="M5.5 8h2.5" />}
+    </svg>
+  );
+}
+
 export function ChatExperience() {
   const { status, data: session } = useSession();
   const searchParams = useSearchParams();
@@ -235,7 +254,7 @@ export function ChatExperience() {
   const [messageSearch, setMessageSearch] = useState("");
   const [isSearchOpen, setIsSearchOpen] = useState(false);
   const [isUtilitiesOpen, setIsUtilitiesOpen] = useState(false);
-  const [isRoomActionsCollapsed, setIsRoomActionsCollapsed] = useState(false);
+  const [isRoomActionsCollapsed, setIsRoomActionsCollapsed] = useState(true);
   const [joinCode, setJoinCode] = useState("");
   const [handleSearch, setHandleSearch] = useState("");
   const [contactResults, setContactResults] = useState<User[]>([]);
@@ -253,6 +272,7 @@ export function ChatExperience() {
   const [onboardingStep, setOnboardingStep] = useState<OnboardingStep>("identity");
   const [showJumpToLatest, setShowJumpToLatest] = useState(false);
   const [isMobileIdentityOpen, setIsMobileIdentityOpen] = useState(false);
+  const [isDockCollapsed, setIsDockCollapsed] = useState(false);
   const deferredDraft = useDeferredValue(draft);
   const typingTimeoutRef = useRef<ReturnType<typeof setTimeout> | null>(null);
   const mediaRecorderRef = useRef<MediaRecorder | null>(null);
@@ -1541,13 +1561,20 @@ export function ChatExperience() {
         ) : null}
       </AnimatePresence>
 
-      <div className="grid gap-4 xl:h-full xl:min-h-0 xl:grid-cols-[minmax(0,296px)_320px_minmax(0,1fr)_388px] 2xl:grid-cols-[minmax(0,312px)_336px_minmax(0,1fr)_388px]">
+      <div
+        className={cx(
+          "grid gap-4 xl:h-full xl:min-h-0",
+          isDockCollapsed
+            ? "xl:grid-cols-[260px_292px_minmax(0,1.45fr)_76px] 2xl:grid-cols-[272px_304px_minmax(0,1.65fr)_76px]"
+            : "xl:grid-cols-[260px_292px_minmax(0,1.35fr)_348px] 2xl:grid-cols-[272px_304px_minmax(0,1.55fr)_360px]",
+        )}
+      >
         <motion.aside
           layout
           transition={reduceMotion ? undefined : motionTokens.spring}
           className="hidden xl:block xl:h-full xl:min-h-0"
         >
-          <GlassCard className="flex h-full min-h-0 flex-col p-5">
+          <GlassCard className="p-5">
             <SectionLabel>Identity</SectionLabel>
             <div className="mt-4 flex items-start gap-4">
               <div className="synq-sigil flex h-16 w-16 shrink-0 items-center justify-center rounded-[22px] border border-white/10 text-lg font-semibold text-white">
@@ -1578,52 +1605,7 @@ export function ChatExperience() {
               Manage profile
             </button>
 
-            <div className="mt-6 border-t border-white/8 pt-6">
-              <div className="flex items-start justify-between gap-3">
-                <div>
-                  <p className="text-base font-semibold text-white">Spaces</p>
-                  <p className="mt-1 text-sm leading-6 text-white/52">
-                    Move between direct signals, shared rooms, and broadcasts.
-                  </p>
-                </div>
-                {totalUnreadCount ? <StatusPill tone="coral">{totalUnreadCount} unread</StatusPill> : null}
-              </div>
-
-              <div className="mt-4 grid gap-2.5">
-                {spaceItems.map((space) => (
-                  <button
-                    key={space.id}
-                    type="button"
-                    onClick={() => handleSelectWorkspace(space.id)}
-                    className={cx(
-                      "w-full rounded-[24px] border px-4 py-4 text-left transition",
-                      space.id === selectedWorkspaceId
-                        ? "border-[#5DE4FF]/38 bg-[linear-gradient(135deg,rgba(93,228,255,0.14),rgba(255,122,110,0.07))] shadow-[0_16px_38px_rgba(7,16,26,0.24)]"
-                        : "border-white/8 bg-white/[0.03] hover:border-white/14 hover:bg-white/[0.055]",
-                    )}
-                  >
-                    <div className="flex items-center gap-3">
-                      <div className="synq-sigil flex h-12 w-12 shrink-0 items-center justify-center rounded-[18px] border border-white/10 text-sm font-semibold text-white">
-                        {space.glyph}
-                      </div>
-                      <div className="min-w-0 flex-1">
-                        <div className="flex items-center justify-between gap-3">
-                          <p className="truncate font-medium text-white">{space.name}</p>
-                          {space.unreadCount ? (
-                            <span className="rounded-full bg-[#FF7A6E] px-2 py-1 text-[11px] font-semibold text-[#071019]">
-                              {space.unreadCount}
-                            </span>
-                          ) : null}
-                        </div>
-                        <p className="mt-1 truncate text-sm text-white/54">{space.caption}</p>
-                      </div>
-                    </div>
-                  </button>
-                ))}
-              </div>
-            </div>
-
-            <div className="mt-auto border-t border-white/8 pt-4">
+            <div className="mt-6 border-t border-white/8 pt-4">
               <p className="text-xs text-white/38">
                 Sync {connectionLabel} | {queueCount} queued
               </p>
@@ -1678,19 +1660,14 @@ export function ChatExperience() {
 
         <GlassCard className="flex min-h-0 flex-col p-4 transition xl:h-full">
           <div className="flex items-start justify-between gap-4">
-            <div className="flex min-w-0 items-start gap-3">
-              <div className="synq-sigil flex h-12 w-12 shrink-0 items-center justify-center rounded-[18px] border border-white/10 text-sm font-semibold text-white">
-                {selectedSpace.glyph}
-              </div>
-              <div className="min-w-0">
-                <SectionLabel>Inbox</SectionLabel>
-                <h2 className="mt-2 truncate text-xl font-semibold text-white">{selectedSpace.name}</h2>
-                <p className="mt-1 text-sm leading-6 text-white/52">
-                  {selectedSpace.kind === "direct"
-                    ? "Private threads you explicitly start."
-                    : `${selectedSpace.caption} - ${visibleConversations.length} room${visibleConversations.length === 1 ? "" : "s"}`}
-                </p>
-              </div>
+            <div className="min-w-0">
+              <SectionLabel>Signal inbox</SectionLabel>
+              <h2 className="mt-2 truncate text-xl font-semibold text-white">{selectedSpace.name}</h2>
+              <p className="mt-1 text-sm leading-6 text-white/52">
+                {selectedSpace.kind === "direct"
+                  ? "Private threads you explicitly start."
+                  : selectedSpace.caption}
+              </p>
             </div>
             <div className="flex shrink-0 flex-wrap items-center gap-2">
               {selectedSpace.unreadCount ? (
@@ -1700,6 +1677,31 @@ export function ChatExperience() {
                 {visibleConversations.length} room{visibleConversations.length === 1 ? "" : "s"}
               </span>
             </div>
+          </div>
+          <div className="mt-5 grid grid-cols-1 gap-2 sm:grid-cols-3">
+            {spaceItems.map((space) => (
+              <button
+                key={`inbox-space-${space.id}`}
+                type="button"
+                onClick={() => handleSelectWorkspace(space.id)}
+                className={cx(
+                  "rounded-[18px] border px-4 py-3 text-left transition",
+                  space.id === selectedWorkspaceId
+                    ? "border-[#5DE4FF]/32 bg-[#5DE4FF]/10 text-white"
+                    : "border-white/8 bg-white/[0.03] text-white/74 hover:border-white/14 hover:bg-white/[0.05] hover:text-white",
+                )}
+              >
+                <div className="flex items-center justify-between gap-3">
+                  <span className="truncate text-sm font-medium">{space.name}</span>
+                  {space.unreadCount ? (
+                    <span className="rounded-full bg-[#FF7A6E] px-2 py-1 text-[11px] font-semibold text-[#071019]">
+                      {space.unreadCount}
+                    </span>
+                  ) : null}
+                </div>
+                <p className="mt-1 truncate text-xs text-current/65">{space.caption}</p>
+              </button>
+            ))}
           </div>
           <div className="mt-5 rounded-[24px] border border-white/7 bg-black/12 p-3">
             <div className="flex items-center justify-between gap-3">
@@ -1792,7 +1794,7 @@ export function ChatExperience() {
                   className={cx(
                     "w-full rounded-[26px] border p-4 text-left transition",
                     conversation.id === selectedConversation?.id
-                      ? "border-[#5DE4FF]/40 bg-[linear-gradient(135deg,rgba(93,228,255,0.14),rgba(255,122,110,0.08))] shadow-[0_18px_44px_rgba(7,16,26,0.28)]"
+                      ? "border-[#5DE4FF]/40 bg-[linear-gradient(135deg,rgba(93,228,255,0.14),rgba(255,122,110,0.08))] shadow-[0_10px_24px_rgba(7,16,26,0.16)]"
                       : "border-white/8 bg-white/[0.04] hover:border-white/14 hover:bg-white/[0.06]",
                   )}
                 >
@@ -2294,6 +2296,16 @@ export function ChatExperience() {
             <textarea
               value={draft}
               onChange={(event) => setDraft(event.target.value)}
+              onKeyDown={(event) => {
+                if (
+                  event.key === "Enter" &&
+                  !event.shiftKey &&
+                  !event.nativeEvent.isComposing
+                ) {
+                  event.preventDefault();
+                  void handleSend();
+                }
+              }}
               rows={4}
               placeholder={
                 selectedConversation
@@ -2366,9 +2378,47 @@ export function ChatExperience() {
           </div>
         </GlassCard>
 
-        <GlassCard className="overflow-hidden p-4 xl:h-full xl:min-h-0">
-          <div className="synq-scroll synq-scroll--subtle flex min-h-0 flex-col overflow-y-auto overscroll-contain pr-2 xl:h-full">
-            <SectionLabel>Dock</SectionLabel>
+        <GlassCard
+          className={cx(
+            "overflow-hidden xl:h-full xl:min-h-0",
+            isDockCollapsed ? "p-3" : "p-4",
+          )}
+        >
+          <div
+            className={cx(
+              "synq-scroll synq-scroll--subtle flex min-h-0 overflow-y-auto overscroll-contain xl:h-full",
+              isDockCollapsed ? "flex-col items-center gap-3" : "flex-col pr-2",
+            )}
+          >
+            <div className={cx("flex items-center", isDockCollapsed ? "justify-center" : "justify-between")}>
+              {isDockCollapsed ? null : <SectionLabel>Dock</SectionLabel>}
+              <button
+                type="button"
+                aria-label={isDockCollapsed ? "Expand dock" : "Collapse dock"}
+                onClick={() => setIsDockCollapsed((current) => !current)}
+                className="rounded-full border border-white/10 bg-white/[0.04] p-2 text-white/72 transition hover:border-white/18 hover:text-white"
+              >
+                <DockToggleIcon collapsed={isDockCollapsed} />
+              </button>
+            </div>
+            {isDockCollapsed ? (
+              <div className="mt-2 flex flex-1 flex-col items-center gap-2">
+                {DOCK_TABS.map((tab) => (
+                  <button
+                    key={`collapsed-${tab.id}`}
+                    type="button"
+                    title={tab.label}
+                    aria-label={`Open ${tab.label} dock tab`}
+                    data-active={activeDockTab === tab.id}
+                    onClick={() => setActiveDockTab(tab.id)}
+                    className="synq-tab flex h-11 w-11 items-center justify-center rounded-[16px] text-xs font-semibold"
+                  >
+                    {tab.id === "profile" ? "P" : tab.id === "safety" ? "S" : tab.id === "ai" ? "AI" : "M"}
+                  </button>
+                ))}
+              </div>
+            ) : (
+              <>
             <div className="mt-4">
               <TrustOrb
                 ghostMode={currentUser.ghostMode}
@@ -2779,6 +2829,8 @@ export function ChatExperience() {
           </>
             ) : null}
             </div>
+              </>
+            )}
           </div>
         </GlassCard>
       </div>
