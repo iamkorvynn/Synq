@@ -9,7 +9,7 @@ import {
   useState,
 } from "react";
 import { useSearchParams } from "next/navigation";
-import { signOut, useSession } from "next-auth/react";
+import { signIn, signOut, useSession } from "next-auth/react";
 import { AnimatePresence, motion, useReducedMotion } from "framer-motion";
 
 import { bytesToBase64String, encryptAttachmentBytes } from "@synq/crypto";
@@ -105,6 +105,8 @@ function describeAuthError(code: string | null) {
   if (code === "AccessDenied") return "This Google account cannot open Synq right now.";
   if (code === "EnvConflict")
     return "Synq found conflicting auth env vars. Keep only one Google OAuth pair, and make AUTH_SECRET and NEXTAUTH_SECRET identical.";
+  if (code === "MissingCSRF")
+    return "Synq could not start Google sign-in securely. Refresh once and try again.";
   if (code === "Configuration")
     return "Google auth is not configured yet. Add AUTH_SECRET, AUTH_GOOGLE_ID, and AUTH_GOOGLE_SECRET in Vercel, or use NEXTAUTH_SECRET, GOOGLE_CLIENT_ID, and GOOGLE_CLIENT_SECRET.";
   return "Synq could not complete sign-in with Google.";
@@ -492,8 +494,11 @@ export function ChatExperience() {
     }
   }
 
-  function handleGoogleSignIn() {
-    window.location.assign("/api/auth/start/google");
+  async function handleGoogleSignIn() {
+    setAuthError("");
+    await signIn("google", {
+      redirectTo: "/chat",
+    });
   }
 
   async function handleStageAttachment(file: File) {
