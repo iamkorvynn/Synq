@@ -72,7 +72,7 @@ import { TrustOrb } from "./trust-orb";
 
 type AuthStage = "loading" | "signed_out" | "ready";
 type ToastTone = "success" | "error" | "info";
-type DockTab = "memory" | "profile" | "safety" | "ai";
+type DockTab = "memory" | "safety" | "ai";
 type OnboardingStep = "identity" | "privacy" | "enter";
 
 type ToastState = { id: string; tone: ToastTone; message: string };
@@ -99,7 +99,6 @@ type SpaceNavItem = {
 const QUICK_REACTIONS = ["ðŸ‘", "ðŸ”¥", "ðŸ«¶", "ðŸ‘€"];
 const DOCK_TABS: Array<{ id: DockTab; label: string; caption: string }> = [
   { id: "memory", label: "Memory", caption: "Context and pinned signals" },
-  { id: "profile", label: "Profile", caption: "Identity, discovery, and contacts" },
   { id: "safety", label: "Safety", caption: "Devices, reports, and account controls" },
   { id: "ai", label: "AI", caption: "Rewrite, workspace pulse, and dock tools" },
 ];
@@ -224,6 +223,152 @@ function DockToggleIcon({ collapsed }: { collapsed: boolean }) {
   );
 }
 
+function ProfilePanelIcon() {
+  return (
+    <svg
+      aria-hidden="true"
+      viewBox="0 0 20 20"
+      className="h-4 w-4"
+      fill="none"
+      stroke="currentColor"
+      strokeWidth="1.5"
+      strokeLinecap="round"
+      strokeLinejoin="round"
+    >
+      <path d="M10 10.25a3.25 3.25 0 1 0 0-6.5 3.25 3.25 0 0 0 0 6.5Z" />
+      <path d="M4.75 16.25c.82-2.2 2.74-3.5 5.25-3.5s4.43 1.3 5.25 3.5" />
+      <path d="M15.5 6.5h1.75" />
+      <path d="M16.375 5.625v1.75" />
+    </svg>
+  );
+}
+
+function SinglePersonIcon() {
+  return (
+    <svg
+      aria-hidden="true"
+      viewBox="0 0 20 20"
+      className="h-4.5 w-4.5"
+      fill="none"
+      stroke="currentColor"
+      strokeWidth="1.5"
+      strokeLinecap="round"
+      strokeLinejoin="round"
+    >
+      <path d="M10 10.25a3.25 3.25 0 1 0 0-6.5 3.25 3.25 0 0 0 0 6.5Z" />
+      <path d="M4.75 16.25c.82-2.2 2.74-3.5 5.25-3.5s4.43 1.3 5.25 3.5" />
+    </svg>
+  );
+}
+
+function GroupIcon() {
+  return (
+    <svg
+      aria-hidden="true"
+      viewBox="0 0 20 20"
+      className="h-4.5 w-4.5"
+      fill="none"
+      stroke="currentColor"
+      strokeWidth="1.5"
+      strokeLinecap="round"
+      strokeLinejoin="round"
+    >
+      <path d="M7 9.75a2.5 2.5 0 1 0 0-5 2.5 2.5 0 0 0 0 5Z" />
+      <path d="M13.25 8.75a2 2 0 1 0 0-4 2 2 0 0 0 0 4Z" />
+      <path d="M3.75 15.75c.58-1.77 2.06-2.75 3.98-2.75 1.75 0 3.16.8 3.84 2.25" />
+      <path d="M11.5 15.25c.42-1.3 1.43-2 2.83-2 1.15 0 2.06.5 2.67 1.5" />
+    </svg>
+  );
+}
+
+function BroadcastIcon() {
+  return (
+    <svg
+      aria-hidden="true"
+      viewBox="0 0 20 20"
+      className="h-4.5 w-4.5"
+      fill="none"
+      stroke="currentColor"
+      strokeWidth="1.5"
+      strokeLinecap="round"
+      strokeLinejoin="round"
+    >
+      <path d="M4.5 10.25 13.75 6v8.5L4.5 10.25Z" />
+      <path d="M4.5 10.25h1.75v3a1.5 1.5 0 0 0 1.5 1.5h.25" />
+      <path d="M15.75 8.25a3.25 3.25 0 0 1 0 4" />
+      <path d="M17.5 6.25a6 6 0 0 1 0 8" />
+    </svg>
+  );
+}
+
+function MemoryIcon() {
+  return (
+    <svg
+      aria-hidden="true"
+      viewBox="0 0 20 20"
+      className="h-4.5 w-4.5"
+      fill="none"
+      stroke="currentColor"
+      strokeWidth="1.5"
+      strokeLinecap="round"
+      strokeLinejoin="round"
+    >
+      <rect x="4.25" y="3.75" width="11.5" height="12.5" rx="2.5" />
+      <path d="M7 7h6" />
+      <path d="M7 10h6" />
+      <path d="M7 13h3.5" />
+    </svg>
+  );
+}
+
+function SafetyIcon() {
+  return (
+    <svg
+      aria-hidden="true"
+      viewBox="0 0 20 20"
+      className="h-4.5 w-4.5"
+      fill="none"
+      stroke="currentColor"
+      strokeWidth="1.5"
+      strokeLinecap="round"
+      strokeLinejoin="round"
+    >
+      <path d="M10 3.5 15.75 5.75v3.9c0 3.16-1.84 5.51-5.75 6.85-3.91-1.34-5.75-3.69-5.75-6.85v-3.9L10 3.5Z" />
+      <path d="m8 10 1.4 1.4L12.75 8" />
+    </svg>
+  );
+}
+
+function AIIcon() {
+  return (
+    <svg
+      aria-hidden="true"
+      viewBox="0 0 20 20"
+      className="h-4.5 w-4.5"
+      fill="none"
+      stroke="currentColor"
+      strokeWidth="1.5"
+      strokeLinecap="round"
+      strokeLinejoin="round"
+    >
+      <path d="m10 3.75 1.55 3.2L15 8.5l-3.45 1.55L10 13.25l-1.55-3.2L5 8.5l3.45-1.55L10 3.75Z" />
+      <path d="m15.25 12.75.8 1.6 1.6.8-1.6.8-.8 1.6-.8-1.6-1.6-.8 1.6-.8.8-1.6Z" />
+    </svg>
+  );
+}
+
+function renderDockTabIcon(tab: DockTab) {
+  if (tab === "memory") return <MemoryIcon />;
+  if (tab === "safety") return <SafetyIcon />;
+  return <AIIcon />;
+}
+
+function renderSpaceIcon(space: SpaceNavItem) {
+  if (space.kind === "direct") return <SinglePersonIcon />;
+  if (/broadcast/i.test(space.name)) return <BroadcastIcon />;
+  return <GroupIcon />;
+}
+
 export function ChatExperience() {
   const { status, data: session } = useSession();
   const searchParams = useSearchParams();
@@ -272,12 +417,14 @@ export function ChatExperience() {
   const [onboardingStep, setOnboardingStep] = useState<OnboardingStep>("identity");
   const [showJumpToLatest, setShowJumpToLatest] = useState(false);
   const [isMobileIdentityOpen, setIsMobileIdentityOpen] = useState(false);
-  const [isDockCollapsed, setIsDockCollapsed] = useState(false);
+  const [isDockCollapsed, setIsDockCollapsed] = useState(true);
+  const [isProfileFlyoutOpen, setIsProfileFlyoutOpen] = useState(false);
   const deferredDraft = useDeferredValue(draft);
   const typingTimeoutRef = useRef<ReturnType<typeof setTimeout> | null>(null);
   const mediaRecorderRef = useRef<MediaRecorder | null>(null);
   const searchInputRef = useRef<HTMLInputElement | null>(null);
   const utilitiesRef = useRef<HTMLDivElement | null>(null);
+  const profileFlyoutRef = useRef<HTMLDivElement | null>(null);
   const messageListRef = useRef<HTMLDivElement | null>(null);
 
   const currentUser = useMemo(
@@ -468,6 +615,190 @@ export function ChatExperience() {
   const ghostPreviewAvatar = profileDraft.hiddenAvatar
     ? "--"
     : profileDraft.avatar || currentUser?.avatar || "S";
+  const profileFlyoutBody = (
+    <div className="synq-scroll synq-scroll--subtle max-h-[min(72vh,760px)] overflow-y-auto pr-1">
+      <div className="space-y-3">
+        <div className="rounded-[26px] border border-white/8 bg-white/[0.035] p-4">
+          <div className="flex items-start gap-4">
+            <div className="synq-sigil flex h-16 w-16 items-center justify-center rounded-[22px] border border-white/10 text-lg font-semibold text-white">
+              {ghostPreviewAvatar}
+            </div>
+            <div className="min-w-0">
+              <div className="flex flex-wrap items-center gap-2">
+                <p className="truncate text-lg font-semibold text-white">{ghostPreviewIdentity}</p>
+                {profileDraft.ghostMode ? (
+                  <StatusPill tone="mint" className="text-[10px] tracking-[0.16em]">
+                    GHOST
+                  </StatusPill>
+                ) : null}
+              </div>
+              <p className="mt-2 text-sm leading-6 text-white/58">
+                {profileDraft.privateDiscovery
+                  ? "Private discovery is on. Exact handles work best."
+                  : profileDraft.bio || "Tune your presence before you invite friends in."}
+              </p>
+            </div>
+          </div>
+        </div>
+
+        <div className="rounded-[26px] border border-white/8 bg-white/[0.035] p-4">
+          <div className="flex items-center justify-between">
+            <SectionLabel>Find people</SectionLabel>
+            <StatusPill tone="cyan">By handle</StatusPill>
+          </div>
+          <input
+            value={handleSearch}
+            onChange={(event) => setHandleSearch(event.target.value)}
+            placeholder="Search handles"
+            className="mt-4 w-full rounded-2xl border border-white/10 bg-white/[0.04] px-3 py-3 text-sm text-white outline-none"
+          />
+          <div className="mt-3 grid gap-2">
+            {contactResults.length ? (
+              contactResults.map((user) => (
+                <button
+                  key={user.id}
+                  type="button"
+                  onClick={() => void handleStartDirect(user.handle)}
+                  className="rounded-[20px] border border-white/8 bg-white/[0.04] px-3 py-3 text-left"
+                >
+                  <div className="flex items-center justify-between gap-3">
+                    <div className="flex items-center gap-3">
+                      <div className="flex h-10 w-10 items-center justify-center rounded-2xl bg-white/10 text-sm font-semibold text-white">
+                        {displayAvatar(user)}
+                      </div>
+                      <div>
+                        <p className="font-medium text-white">{displayIdentity(user)}</p>
+                        <p className="text-xs text-white/50">
+                          {user.privateDiscovery ? "Exact-handle discovery" : user.bio}
+                        </p>
+                      </div>
+                    </div>
+                    <span className="rounded-full border border-white/10 px-2 py-1 text-[11px] text-white/55">
+                      DM
+                    </span>
+                  </div>
+                </button>
+              ))
+            ) : handleSearch.trim() ? (
+              <div className="rounded-[20px] border border-dashed border-white/10 bg-white/[0.03] px-3 py-4 text-sm text-white/55">
+                No matching handle yet.
+              </div>
+            ) : (
+              <div className="rounded-[20px] border border-dashed border-white/10 bg-white/[0.03] px-3 py-4 text-sm text-white/55">
+                Search by handle to start private signals with friends.
+              </div>
+            )}
+          </div>
+        </div>
+
+        <div className="rounded-[26px] border border-white/8 bg-white/[0.035] p-4">
+          <div className="flex items-center justify-between">
+            <SectionLabel>Ghost profile</SectionLabel>
+            <StatusPill tone="mint">{profileDraft.ghostMode ? "Stealth" : "Open"}</StatusPill>
+          </div>
+          <div className="mt-4 grid gap-3">
+            <input
+              value={profileDraft.name}
+              onChange={(event) =>
+                setProfileDraft((current) => ({ ...current, name: event.target.value }))
+              }
+              placeholder="Display name"
+              className="rounded-2xl border border-white/10 bg-white/[0.04] px-3 py-3 text-sm text-white outline-none"
+            />
+            <input
+              value={profileDraft.avatar}
+              onChange={(event) =>
+                setProfileDraft((current) => ({
+                  ...current,
+                  avatar: event.target.value.slice(0, 2) || current.avatar,
+                }))
+              }
+              placeholder="Avatar letters"
+              className="rounded-2xl border border-white/10 bg-white/[0.04] px-3 py-3 text-sm text-white outline-none"
+            />
+            <textarea
+              value={profileDraft.bio}
+              onChange={(event) =>
+                setProfileDraft((current) => ({ ...current, bio: event.target.value }))
+              }
+              rows={3}
+              placeholder="Short bio"
+              className="rounded-2xl border border-white/10 bg-white/[0.04] px-3 py-3 text-sm text-white outline-none"
+            />
+          </div>
+          <div className="mt-4 grid gap-3 rounded-[24px] border border-white/8 bg-white/[0.03] p-3 text-sm text-white/70">
+            <label className="flex items-center justify-between gap-3">
+              <span>Ghost mode</span>
+              <input
+                type="checkbox"
+                checked={profileDraft.ghostMode}
+                onChange={(event) =>
+                  setProfileDraft((current) => ({
+                    ...current,
+                    ghostMode: event.target.checked,
+                  }))
+                }
+              />
+            </label>
+            <label className="flex items-center justify-between gap-3">
+              <span>Hidden avatar</span>
+              <input
+                type="checkbox"
+                checked={profileDraft.hiddenAvatar}
+                onChange={(event) =>
+                  setProfileDraft((current) => ({
+                    ...current,
+                    hiddenAvatar: event.target.checked,
+                  }))
+                }
+              />
+            </label>
+            <label className="flex items-center justify-between gap-3">
+              <span>Private discovery</span>
+              <input
+                type="checkbox"
+                checked={profileDraft.privateDiscovery}
+                onChange={(event) =>
+                  setProfileDraft((current) => ({
+                    ...current,
+                    privateDiscovery: event.target.checked,
+                  }))
+                }
+              />
+            </label>
+            <div className="flex flex-wrap gap-2">
+              {(["handle_only", "full"] as ProfileVisibility[]).map((mode) => (
+                <button
+                  key={mode}
+                  type="button"
+                  onClick={() =>
+                    setProfileDraft((current) => ({
+                      ...current,
+                      profileVisibility: mode,
+                    }))
+                  }
+                  className={`rounded-full border px-3 py-2 text-xs ${
+                    profileDraft.profileVisibility === mode
+                      ? "border-[#5DE4FF]/40 bg-[#5DE4FF]/10 text-white"
+                      : "border-white/10 text-white/55"
+                  }`}
+                >
+                  {mode === "handle_only" ? "Handle only" : "Full profile"}
+                </button>
+              ))}
+            </div>
+          </div>
+          <button
+            type="button"
+            onClick={() => void handleSaveProfile()}
+            className="mt-4 rounded-full border border-[#5DE4FF]/30 bg-[#5DE4FF]/10 px-4 py-2 text-sm text-white"
+          >
+            Save profile
+          </button>
+        </div>
+      </div>
+    </div>
+  );
 
   function pushToast(tone: ToastTone, message: string) {
     const id = crypto.randomUUID();
@@ -506,7 +837,7 @@ export function ChatExperience() {
   }
 
   function handleOpenProfileDock(closeMobileSheet = false) {
-    setActiveDockTab("profile");
+    setIsProfileFlyoutOpen((current) => (closeMobileSheet ? true : !current));
     if (closeMobileSheet) {
       setIsMobileIdentityOpen(false);
     }
@@ -668,6 +999,21 @@ export function ChatExperience() {
     document.addEventListener("mousedown", handlePointerDown);
     return () => document.removeEventListener("mousedown", handlePointerDown);
   }, [isUtilitiesOpen]);
+
+  useEffect(() => {
+    if (!isProfileFlyoutOpen) {
+      return;
+    }
+
+    function handlePointerDown(event: MouseEvent) {
+      if (!profileFlyoutRef.current?.contains(event.target as Node)) {
+        setIsProfileFlyoutOpen(false);
+      }
+    }
+
+    document.addEventListener("mousedown", handlePointerDown);
+    return () => document.removeEventListener("mousedown", handlePointerDown);
+  }, [isProfileFlyoutOpen]);
 
   useEffect(() => {
     if (status !== "unauthenticated" || !authErrorCode) {
@@ -999,6 +1345,7 @@ export function ChatExperience() {
       setSelectedConversationId(conversation.id);
       setHandleSearch("");
       setContactResults([]);
+      setIsProfileFlyoutOpen(false);
       pushToast("success", `Direct signal opened with @${handle}.`);
     } catch {
       pushToast("error", "Synq could not open that direct signal.");
@@ -1465,8 +1812,16 @@ export function ChatExperience() {
               </div>
 
               <div className="synq-scroll min-h-0 flex-1 overflow-y-auto px-5 py-5">
-                <div className="rounded-[28px] border border-white/8 bg-white/[0.03] p-4">
-                  <div className="flex items-start gap-4">
+                <div className="relative rounded-[28px] border border-white/8 bg-white/[0.03] p-4">
+                  <button
+                    type="button"
+                    onClick={() => handleOpenProfileDock(true)}
+                    className="absolute right-4 top-4 rounded-full border border-white/10 bg-white/[0.04] p-2 text-white/72 transition hover:border-white/18 hover:text-white"
+                    aria-label="Open profile panel"
+                  >
+                    <ProfilePanelIcon />
+                  </button>
+                  <div className="flex items-start gap-4 pr-12">
                     <div className="synq-sigil flex h-16 w-16 shrink-0 items-center justify-center rounded-[22px] border border-white/10 text-lg font-semibold text-white">
                       {displayAvatar(currentUser)}
                     </div>
@@ -1493,13 +1848,6 @@ export function ChatExperience() {
                     <span>|</span>
                     <span>{queueCount} queued</span>
                   </div>
-                  <button
-                    type="button"
-                    onClick={() => handleOpenProfileDock(true)}
-                    className="mt-4 w-full rounded-full border border-white/10 bg-white/[0.04] px-4 py-3 text-sm text-white/80 transition hover:border-white/18 hover:bg-white/[0.07]"
-                  >
-                    Manage profile
-                  </button>
                 </div>
 
                 <div className="mt-6">
@@ -1527,7 +1875,7 @@ export function ChatExperience() {
                       >
                         <div className="flex items-center gap-3">
                           <div className="synq-sigil flex h-12 w-12 shrink-0 items-center justify-center rounded-[18px] border border-white/10 text-sm font-semibold text-white">
-                            {space.glyph}
+                            {renderSpaceIcon(space)}
                           </div>
                           <div className="min-w-0 flex-1">
                             <div className="flex items-center justify-between gap-3">
@@ -1561,6 +1909,42 @@ export function ChatExperience() {
         ) : null}
       </AnimatePresence>
 
+      <AnimatePresence initial={false}>
+        {isProfileFlyoutOpen ? (
+          <motion.div
+            className="fixed inset-0 z-40 bg-[#02060B]/55 px-4 py-6 backdrop-blur-sm xl:hidden"
+            initial={reduceMotion ? false : { opacity: 0 }}
+            animate={{ opacity: 1 }}
+            exit={reduceMotion ? undefined : { opacity: 0 }}
+            onClick={() => setIsProfileFlyoutOpen(false)}
+          >
+            <motion.div
+              ref={profileFlyoutRef}
+              initial={reduceMotion ? false : { opacity: 0, y: 18, scale: 0.98 }}
+              animate={{ opacity: 1, y: 0, scale: 1 }}
+              exit={reduceMotion ? undefined : { opacity: 0, y: 12, scale: 0.98 }}
+              transition={reduceMotion ? undefined : motionTokens.spring}
+              onClick={(event) => event.stopPropagation()}
+              className="mx-auto mt-16 max-w-[420px]"
+            >
+              <GlassCard className="p-3 shadow-[0_30px_90px_rgba(0,0,0,0.45)]">
+                <div className="mb-3 flex items-center justify-between px-2">
+                  <SectionLabel>Profile</SectionLabel>
+                  <button
+                    type="button"
+                    onClick={() => setIsProfileFlyoutOpen(false)}
+                    className="rounded-full border border-white/10 px-3 py-1.5 text-xs text-white/58 transition hover:border-white/18 hover:text-white"
+                  >
+                    Close
+                  </button>
+                </div>
+                {profileFlyoutBody}
+              </GlassCard>
+            </motion.div>
+          </motion.div>
+        ) : null}
+      </AnimatePresence>
+
       <div
         className={cx(
           "grid gap-4 xl:h-full xl:min-h-0",
@@ -1572,11 +1956,11 @@ export function ChatExperience() {
         <motion.aside
           layout
           transition={reduceMotion ? undefined : motionTokens.spring}
-          className="hidden xl:block xl:h-full xl:min-h-0"
+          className="relative hidden xl:block xl:h-full xl:min-h-0"
         >
           <GlassCard className="p-5">
             <SectionLabel>Identity</SectionLabel>
-            <div className="mt-4 flex items-start gap-4">
+            <div className="mt-4 flex items-start gap-4 pr-12">
               <div className="synq-sigil flex h-16 w-16 shrink-0 items-center justify-center rounded-[22px] border border-white/10 text-lg font-semibold text-white">
                 {displayAvatar(currentUser)}
               </div>
@@ -1596,13 +1980,13 @@ export function ChatExperience() {
                 </p>
               </div>
             </div>
-
             <button
               type="button"
               onClick={() => handleOpenProfileDock()}
-              className="mt-5 w-full rounded-full border border-white/10 bg-white/[0.04] px-4 py-3 text-sm text-white/80 transition hover:border-white/18 hover:bg-white/[0.07]"
+              className="absolute right-5 top-5 rounded-full border border-white/10 bg-white/[0.04] p-2 text-white/72 transition hover:border-white/18 hover:text-white"
+              aria-label="Open profile panel"
             >
-              Manage profile
+              <ProfilePanelIcon />
             </button>
 
             <div className="mt-6 border-t border-white/8 pt-4">
@@ -1618,6 +2002,32 @@ export function ChatExperience() {
               </button>
             </div>
           </GlassCard>
+          <AnimatePresence initial={false}>
+            {isProfileFlyoutOpen ? (
+              <motion.div
+                ref={profileFlyoutRef}
+                initial={reduceMotion ? false : { opacity: 0, x: -12, scale: 0.98 }}
+                animate={{ opacity: 1, x: 0, scale: 1 }}
+                exit={reduceMotion ? undefined : { opacity: 0, x: -8, scale: 0.98 }}
+                transition={reduceMotion ? undefined : motionTokens.spring}
+                className="absolute left-[calc(100%+1rem)] top-0 z-30 hidden w-[360px] xl:block"
+              >
+                <GlassCard className="p-3 shadow-[0_24px_70px_rgba(0,0,0,0.38)]">
+                  <div className="mb-3 flex items-center justify-between px-2">
+                    <SectionLabel>Profile</SectionLabel>
+                    <button
+                      type="button"
+                      onClick={() => setIsProfileFlyoutOpen(false)}
+                      className="rounded-full border border-white/10 px-3 py-1.5 text-xs text-white/58 transition hover:border-white/18 hover:text-white"
+                    >
+                      Close
+                    </button>
+                  </div>
+                  {profileFlyoutBody}
+                </GlassCard>
+              </motion.div>
+            ) : null}
+          </AnimatePresence>
         </motion.aside>
 
         <div className="xl:hidden">
@@ -1648,8 +2058,9 @@ export function ChatExperience() {
             </div>
 
             <div className="mt-4 flex flex-wrap items-center gap-2">
-              <span className="rounded-full border border-white/10 bg-white/[0.04] px-3 py-1.5 text-xs text-white/65">
-                {selectedSpace.glyph} {selectedSpace.name}
+              <span className="inline-flex items-center gap-2 rounded-full border border-white/10 bg-white/[0.04] px-3 py-1.5 text-xs text-white/65">
+                <span className="text-white/78">{renderSpaceIcon(selectedSpace)}</span>
+                {selectedSpace.name}
               </span>
               {selectedSpace.unreadCount ? (
                 <StatusPill tone="coral">{selectedSpace.unreadCount} unread</StatusPill>
@@ -1685,21 +2096,28 @@ export function ChatExperience() {
                 type="button"
                 onClick={() => handleSelectWorkspace(space.id)}
                 className={cx(
-                  "rounded-[18px] border px-4 py-3 text-left transition",
+                  "rounded-[20px] border px-3 py-3 text-left transition",
                   space.id === selectedWorkspaceId
-                    ? "border-[#5DE4FF]/32 bg-[#5DE4FF]/10 text-white"
+                    ? "border-[#5DE4FF]/32 bg-[linear-gradient(135deg,rgba(93,228,255,0.14),rgba(255,122,110,0.08))] text-white"
                     : "border-white/8 bg-white/[0.03] text-white/74 hover:border-white/14 hover:bg-white/[0.05] hover:text-white",
                 )}
               >
-                <div className="flex items-center justify-between gap-3">
-                  <span className="truncate text-sm font-medium">{space.name}</span>
-                  {space.unreadCount ? (
-                    <span className="rounded-full bg-[#FF7A6E] px-2 py-1 text-[11px] font-semibold text-[#071019]">
-                      {space.unreadCount}
-                    </span>
-                  ) : null}
+                <div className="flex items-center gap-3">
+                  <div className="synq-sigil flex h-10 w-10 shrink-0 items-center justify-center rounded-[16px] border border-white/10 text-white">
+                    {renderSpaceIcon(space)}
+                  </div>
+                  <div className="min-w-0 flex-1">
+                    <div className="flex items-center justify-between gap-3">
+                      <span className="truncate text-sm font-medium">{space.name}</span>
+                      {space.unreadCount ? (
+                        <span className="rounded-full bg-[#FF7A6E] px-2 py-1 text-[11px] font-semibold text-[#071019]">
+                          {space.unreadCount}
+                        </span>
+                      ) : null}
+                    </div>
+                    <p className="mt-1 truncate text-xs text-current/65">{space.caption}</p>
+                  </div>
                 </div>
-                <p className="mt-1 truncate text-xs text-current/65">{space.caption}</p>
               </button>
             ))}
           </div>
@@ -1841,7 +2259,7 @@ export function ChatExperience() {
             ) : (
               <div className="rounded-[26px] border border-dashed border-white/10 bg-white/[0.03] px-4 py-8 text-sm leading-6 text-white/55">
                 {selectedSpace.kind === "direct"
-                  ? "No direct signals yet. Open one from Find people in the profile dock."
+                  ? "No direct signals yet. Open one from Find people in your profile panel."
                   : "No rooms in this space yet. Create one, share a join code, or wait for a new signal."}
               </div>
             )}
@@ -2306,14 +2724,14 @@ export function ChatExperience() {
                   void handleSend();
                 }
               }}
-              rows={4}
+              rows={3}
               placeholder={
                 selectedConversation
                   ? "Write a signal, search memory, or leave a reply..."
                   : "Pick a room to start chatting."
               }
               disabled={!selectedConversation}
-              className="w-full rounded-[28px] border border-white/10 bg-white/[0.04] px-4 py-4 text-sm leading-8 text-white outline-none placeholder:text-white/35"
+              className="w-full rounded-[26px] border border-white/10 bg-white/[0.04] px-4 py-3 text-sm leading-6 text-white outline-none placeholder:text-white/35"
             />
             {composerError ? (
               <div className="mt-3 rounded-[18px] border border-[#FF7A6E]/25 bg-[#FF7A6E]/10 px-3 py-2 text-sm text-[#FFD1CB]">
@@ -2322,7 +2740,7 @@ export function ChatExperience() {
             ) : null}
             <div className="mt-4 flex flex-wrap items-center justify-between gap-3">
               <div className="flex flex-wrap items-center gap-2">
-                <label className="cursor-pointer rounded-full border border-white/10 px-4 py-2.5 text-xs text-white/74 transition hover:border-white/18 hover:text-white">
+                <label className="inline-flex h-10 cursor-pointer items-center rounded-full border border-white/10 px-4 text-xs text-white/74 transition hover:border-white/18 hover:text-white">
                   Attach
                   <input
                     type="file"
@@ -2339,7 +2757,7 @@ export function ChatExperience() {
                 <button
                   type="button"
                   onClick={() => void handleVoiceNote()}
-                  className={`rounded-full border px-4 py-2.5 text-xs transition ${
+                  className={`inline-flex h-10 items-center rounded-full border px-4 text-xs transition ${
                     recordingVoice
                       ? "border-[#FF7A6E]/40 bg-[#FF7A6E]/12 text-[#FFD1CB]"
                       : "border-white/10 text-white/74 hover:border-white/18 hover:text-white"
@@ -2353,7 +2771,7 @@ export function ChatExperience() {
                     setDraft(ghostRewrite);
                     pushToast("info", "Ghost rewrite applied locally.");
                   }}
-                  className="rounded-full border border-white/10 px-4 py-2.5 text-xs text-white/74 transition hover:border-white/18 hover:text-white"
+                  className="inline-flex h-10 items-center rounded-full border border-white/10 px-4 text-xs text-white/74 transition hover:border-white/18 hover:text-white"
                 >
                   Ghost rewrite
                 </button>
@@ -2362,7 +2780,7 @@ export function ChatExperience() {
                 type="button"
                 onClick={() => void handleSend()}
                 disabled={!selectedConversation}
-                className="rounded-full bg-[linear-gradient(135deg,#5DE4FF,#FF7A6E)] px-5 py-3 text-sm font-medium text-[#071019] disabled:cursor-not-allowed disabled:opacity-40"
+                className="inline-flex h-10 items-center rounded-full bg-[linear-gradient(135deg,#5DE4FF,#FF7A6E)] px-5 text-sm font-medium text-[#071019] disabled:cursor-not-allowed disabled:opacity-40"
               >
                 {editingMessageId ? "Save edit" : "Send signal"}
               </button>
@@ -2402,7 +2820,10 @@ export function ChatExperience() {
               </button>
             </div>
             {isDockCollapsed ? (
-              <div className="mt-2 flex flex-1 flex-col items-center gap-2">
+              <div className="mt-2 flex flex-1 flex-col items-center gap-3">
+                <div className="flex h-12 w-12 items-center justify-center rounded-[18px] border border-white/10 bg-[linear-gradient(145deg,rgba(93,228,255,0.14),rgba(255,122,110,0.14))] text-white shadow-[0_16px_30px_rgba(7,16,26,0.24)]">
+                  <DockToggleIcon collapsed={false} />
+                </div>
                 {DOCK_TABS.map((tab) => (
                   <button
                     key={`collapsed-${tab.id}`}
@@ -2410,10 +2831,13 @@ export function ChatExperience() {
                     title={tab.label}
                     aria-label={`Open ${tab.label} dock tab`}
                     data-active={activeDockTab === tab.id}
-                    onClick={() => setActiveDockTab(tab.id)}
-                    className="synq-tab flex h-11 w-11 items-center justify-center rounded-[16px] text-xs font-semibold"
+                    onClick={() => {
+                      setActiveDockTab(tab.id);
+                      setIsDockCollapsed(false);
+                    }}
+                    className="synq-tab flex h-12 w-12 items-center justify-center rounded-[18px] text-white/78"
                   >
-                    {tab.id === "profile" ? "P" : tab.id === "safety" ? "S" : tab.id === "ai" ? "AI" : "M"}
+                    {renderDockTabIcon(tab.id)}
                   </button>
                 ))}
               </div>
@@ -2428,7 +2852,7 @@ export function ChatExperience() {
                 tone={conversationTone(selectedConversation)}
               />
             </div>
-            <div className="mt-4 grid grid-cols-2 gap-2">
+            <div className="mt-4 grid grid-cols-3 gap-2">
               {DOCK_TABS.map((tab) => (
                 <button
                   key={tab.id}
@@ -2484,187 +2908,6 @@ export function ChatExperience() {
                 </div>
               </GlassCard>
             ) : null}
-            {activeDockTab === "profile" ? (
-              <>
-          <GlassCard className="p-4">
-            <div className="flex items-start gap-4">
-              <div className="synq-sigil flex h-16 w-16 items-center justify-center rounded-[22px] border border-white/10 text-lg font-semibold text-white">
-                {ghostPreviewAvatar}
-              </div>
-              <div className="min-w-0">
-                <div className="flex flex-wrap items-center gap-2">
-                  <p className="truncate text-lg font-semibold text-white">{ghostPreviewIdentity}</p>
-                  {profileDraft.ghostMode ? (
-                    <StatusPill tone="mint" className="text-[10px] tracking-[0.16em]">
-                      GHOST
-                    </StatusPill>
-                  ) : null}
-                </div>
-                <p className="mt-2 text-sm leading-6 text-white/58">
-                  {profileDraft.privateDiscovery
-                    ? "Private discovery is on. Exact handles work best."
-                    : profileDraft.bio || "Tune your presence before you invite friends in."}
-                </p>
-              </div>
-            </div>
-          </GlassCard>
-
-          <GlassCard className="p-4">
-            <div className="flex items-center justify-between">
-              <SectionLabel>Find people</SectionLabel>
-              <StatusPill tone="cyan">By handle</StatusPill>
-            </div>
-            <input
-              value={handleSearch}
-              onChange={(event) => setHandleSearch(event.target.value)}
-              placeholder="Search handles"
-              className="mt-4 w-full rounded-2xl border border-white/10 bg-white/[0.04] px-3 py-3 text-sm text-white outline-none"
-            />
-            <div className="mt-3 grid gap-2">
-              {contactResults.length ? (
-                contactResults.map((user) => (
-                  <button
-                    key={user.id}
-                    type="button"
-                    onClick={() => void handleStartDirect(user.handle)}
-                    className="rounded-[20px] border border-white/8 bg-white/[0.04] px-3 py-3 text-left"
-                  >
-                    <div className="flex items-center justify-between gap-3">
-                      <div className="flex items-center gap-3">
-                        <div className="flex h-10 w-10 items-center justify-center rounded-2xl bg-white/10 text-sm font-semibold text-white">
-                          {displayAvatar(user)}
-                        </div>
-                        <div>
-                          <p className="font-medium text-white">{displayIdentity(user)}</p>
-                          <p className="text-xs text-white/50">{user.privateDiscovery ? "Exact-handle discovery" : user.bio}</p>
-                        </div>
-                      </div>
-                      <span className="rounded-full border border-white/10 px-2 py-1 text-[11px] text-white/55">
-                        DM
-                      </span>
-                    </div>
-                  </button>
-                ))
-              ) : handleSearch.trim() ? (
-                <div className="rounded-[20px] border border-dashed border-white/10 bg-white/[0.03] px-3 py-4 text-sm text-white/55">
-                  No matching handle yet.
-                </div>
-              ) : (
-                <div className="rounded-[20px] border border-dashed border-white/10 bg-white/[0.03] px-3 py-4 text-sm text-white/55">
-                  Search by handle to start private signals with friends.
-                </div>
-              )}
-            </div>
-          </GlassCard>
-
-          <GlassCard className="p-4">
-            <div className="flex items-center justify-between">
-              <SectionLabel>Ghost profile</SectionLabel>
-              <StatusPill tone="mint">{profileDraft.ghostMode ? "Stealth" : "Open"}</StatusPill>
-            </div>
-            <div className="mt-4 grid gap-3">
-              <input
-                value={profileDraft.name}
-                onChange={(event) =>
-                  setProfileDraft((current) => ({ ...current, name: event.target.value }))
-                }
-                placeholder="Display name"
-                className="rounded-2xl border border-white/10 bg-white/[0.04] px-3 py-3 text-sm text-white outline-none"
-              />
-              <input
-                value={profileDraft.avatar}
-                onChange={(event) =>
-                  setProfileDraft((current) => ({
-                    ...current,
-                    avatar: event.target.value.slice(0, 2) || current.avatar,
-                  }))
-                }
-                placeholder="Avatar letters"
-                className="rounded-2xl border border-white/10 bg-white/[0.04] px-3 py-3 text-sm text-white outline-none"
-              />
-              <textarea
-                value={profileDraft.bio}
-                onChange={(event) =>
-                  setProfileDraft((current) => ({ ...current, bio: event.target.value }))
-                }
-                rows={3}
-                placeholder="Short bio"
-                className="rounded-2xl border border-white/10 bg-white/[0.04] px-3 py-3 text-sm text-white outline-none"
-              />
-            </div>
-            <div className="mt-4 grid gap-3 rounded-[24px] border border-white/8 bg-white/[0.03] p-3 text-sm text-white/70">
-              <label className="flex items-center justify-between gap-3">
-                <span>Ghost mode</span>
-                <input
-                  type="checkbox"
-                  checked={profileDraft.ghostMode}
-                  onChange={(event) =>
-                    setProfileDraft((current) => ({
-                      ...current,
-                      ghostMode: event.target.checked,
-                    }))
-                  }
-                />
-              </label>
-              <label className="flex items-center justify-between gap-3">
-                <span>Hidden avatar</span>
-                <input
-                  type="checkbox"
-                  checked={profileDraft.hiddenAvatar}
-                  onChange={(event) =>
-                    setProfileDraft((current) => ({
-                      ...current,
-                      hiddenAvatar: event.target.checked,
-                    }))
-                  }
-                />
-              </label>
-              <label className="flex items-center justify-between gap-3">
-                <span>Private discovery</span>
-                <input
-                  type="checkbox"
-                  checked={profileDraft.privateDiscovery}
-                  onChange={(event) =>
-                    setProfileDraft((current) => ({
-                      ...current,
-                      privateDiscovery: event.target.checked,
-                    }))
-                  }
-                />
-              </label>
-              <div className="flex flex-wrap gap-2">
-                {(["handle_only", "full"] as ProfileVisibility[]).map((mode) => (
-                  <button
-                    key={mode}
-                    type="button"
-                    onClick={() =>
-                      setProfileDraft((current) => ({
-                        ...current,
-                        profileVisibility: mode,
-                      }))
-                    }
-                    className={`rounded-full border px-3 py-2 text-xs ${
-                      profileDraft.profileVisibility === mode
-                        ? "border-[#5DE4FF]/40 bg-[#5DE4FF]/10 text-white"
-                        : "border-white/10 text-white/55"
-                    }`}
-                  >
-                    {mode === "handle_only" ? "Handle only" : "Full profile"}
-                  </button>
-                ))}
-              </div>
-            </div>
-            <button
-              type="button"
-              onClick={() => void handleSaveProfile()}
-              className="mt-4 rounded-full border border-[#5DE4FF]/30 bg-[#5DE4FF]/10 px-4 py-2 text-sm text-white"
-            >
-              Save profile
-            </button>
-          </GlassCard>
-              </>
-            ) : null}
-
             {activeDockTab === "ai" ? (
               <GlassCard className="p-4">
             <div className="flex items-center justify-between">
