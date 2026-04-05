@@ -164,6 +164,8 @@ export function ChatExperience() {
   const [authError, setAuthError] = useState("");
   const [composerError, setComposerError] = useState("");
   const [messageSearch, setMessageSearch] = useState("");
+  const [isSearchOpen, setIsSearchOpen] = useState(false);
+  const [isUtilitiesOpen, setIsUtilitiesOpen] = useState(false);
   const [joinCode, setJoinCode] = useState("");
   const [handleSearch, setHandleSearch] = useState("");
   const [contactResults, setContactResults] = useState<User[]>([]);
@@ -180,6 +182,8 @@ export function ChatExperience() {
   const deferredDraft = useDeferredValue(draft);
   const typingTimeoutRef = useRef<ReturnType<typeof setTimeout> | null>(null);
   const mediaRecorderRef = useRef<MediaRecorder | null>(null);
+  const searchInputRef = useRef<HTMLInputElement | null>(null);
+  const utilitiesRef = useRef<HTMLDivElement | null>(null);
 
   const currentUser = useMemo(
     () => state?.users.find((user) => user.id === state.currentUserId) ?? null,
@@ -289,6 +293,18 @@ export function ChatExperience() {
     }, 3500);
   }
 
+  function closeSearchPanel() {
+    setIsSearchOpen(false);
+    setMessageSearch("");
+  }
+
+  function openSearchPanel(nextValue?: string) {
+    if (typeof nextValue === "string") {
+      setMessageSearch(nextValue);
+    }
+    setIsSearchOpen(true);
+  }
+
   async function loadBootstrap(quiet = false) {
     try {
       const payload = await fetchBootstrap();
@@ -386,6 +402,39 @@ export function ChatExperience() {
 
     void loadBootstrap();
   }, [authErrorCode, status, session?.user?.email]);
+
+  useEffect(() => {
+    setIsUtilitiesOpen(false);
+    closeSearchPanel();
+  }, [selectedConversation?.id]);
+
+  useEffect(() => {
+    if (!isSearchOpen) {
+      return;
+    }
+
+    const frame = window.requestAnimationFrame(() => {
+      searchInputRef.current?.focus();
+      searchInputRef.current?.select();
+    });
+
+    return () => window.cancelAnimationFrame(frame);
+  }, [isSearchOpen]);
+
+  useEffect(() => {
+    if (!isUtilitiesOpen) {
+      return;
+    }
+
+    function handlePointerDown(event: MouseEvent) {
+      if (!utilitiesRef.current?.contains(event.target as Node)) {
+        setIsUtilitiesOpen(false);
+      }
+    }
+
+    document.addEventListener("mousedown", handlePointerDown);
+    return () => document.removeEventListener("mousedown", handlePointerDown);
+  }, [isUtilitiesOpen]);
 
   useEffect(() => {
     if (status !== "unauthenticated" || !authErrorCode) {
@@ -755,6 +804,16 @@ export function ChatExperience() {
     }
   }
 
+  async function handleRefreshAiDock() {
+    setIsUtilitiesOpen(false);
+    await handleWorkspaceAI();
+  }
+
+  function handleOpenSearchFromUtilities() {
+    setIsUtilitiesOpen(false);
+    openSearchPanel();
+  }
+
   async function handleReaction(messageId: string, emoji: string) {
     await reactToMessage(messageId, { emoji });
     await loadBootstrap(true);
@@ -988,20 +1047,111 @@ export function ChatExperience() {
                 <h2 className="mt-2 text-2xl font-semibold text-white">{selectedConversation?.title}</h2>
                 <p className="text-sm text-white/55">{selectedConversation?.subtitle}</p>
               </div>
-              <div className="flex flex-wrap gap-2">
+              <div className="flex flex-wrap items-center justify-end gap-2">
                 {selectedConversation?.joinCode ? <StatusPill tone="cyan">Join code {selectedConversation.joinCode}</StatusPill> : null}
                 <StatusPill tone="mint">{selectedConversation?.visibility === "e2ee" ? "E2EE sealed" : "Shared room"}</StatusPill>
                 <StatusPill tone="coral">{queueCount} queued</StatusPill>
+                <div className="relative" ref={utilitiesRef}>
+                  <button
+                    type="button"
+                    aria-label="Open conversation tools"
+                    aria-expanded={isUtilitiesOpen}
+                    aria-haspopup="menu"
+                    onClick={() => setIsUtilitiesOpen((current) => !current)}
+                    className="rounded-full border border-white/10 bg-white/[0.04] px-3 py-2 text-sm text-white/75"
+                  >
+                    Utilities
+                  </button>
+                  <AnimatePresence initial={false}>
+                    {isUtilitiesOpen ? (
+                      <motion.div
+                        initial={reduceMotion ? false : { opacity: 0, y: -8 }}
+                        animate={{ opacity: 1, y: 0 }}
+                        exit={reduceMotion ? undefined : { opacity: 0, y: -6 }}
+                        transition={reduceMotion ? undefined : motionTokens.spring}
+                        role="menu"
+                        className="absolute right-0 top-[calc(100%+0.6rem)] z-20 min-w-[210px] rounded-[22px] border border-white/10 bg-[#09111C]/95 p-2 shadow-[0_20px_60px_rgba(0,0,0,0.45)] backdrop-blur-xl"
+                      >
+                        <button
+                          type="button"
+                          role="menuitem"
+                          onClick={handleOpenSearchFromUtilities}
+                          className="w-full rounded-[16px] px-3 py-3 text-left text-sm text-white/80 transition hover:bg-white/[0.06]"
+                        >
+                          Search messages
+                        </button>
+                        <button
+                          type="button"
+                          role="menuitem"
+                          onClick={() => void handleRefreshAiDock()}
+                          className="w-full rounded-[16px] px-3 py-3 text-left text-sm text-white/80 transition hover:bg-white/[0.06]"
+                        >
+                          Refresh AI dock
+                        </button>
+                      </motion.div>
+                    ) : null}
+                  </AnimatePresence>
+                </div>
               </div>
             </div>
-            <div className="mt-4 grid gap-3 md:grid-cols-[minmax(0,1fr)_220px]">
-              <input value={messageSearch} onChange={(event) => setMessageSearch(event.target.value)} placeholder="Search this conversation" className="rounded-2xl border border-white/10 bg-white/[0.04] px-4 py-3 text-sm text-white outline-none" />
-              <button type="button" onClick={() => void handleWorkspaceAI()} className="rounded-2xl border border-[#5DE4FF]/30 bg-[#5DE4FF]/10 px-4 py-3 text-sm text-white">Refresh AI dock</button>
-            </div>
+            <AnimatePresence initial={false}>
+              {isSearchOpen ? (
+                <motion.div
+                  initial={reduceMotion ? false : { opacity: 0, height: 0, y: -8 }}
+                  animate={{ opacity: 1, height: "auto", y: 0 }}
+                  exit={reduceMotion ? undefined : { opacity: 0, height: 0, y: -6 }}
+                  transition={reduceMotion ? undefined : motionTokens.spring}
+                  className="overflow-hidden"
+                >
+                  <div className="mt-4 rounded-[24px] border border-white/8 bg-white/[0.03] p-3">
+                    <div className="grid gap-3 md:grid-cols-[minmax(0,1fr)_auto] md:items-center">
+                      <input
+                        ref={searchInputRef}
+                        value={messageSearch}
+                        onChange={(event) => setMessageSearch(event.target.value)}
+                        onKeyDown={(event) => {
+                          if (event.key === "Escape") {
+                            closeSearchPanel();
+                          }
+                        }}
+                        placeholder="Search this conversation"
+                        className="rounded-2xl border border-white/10 bg-white/[0.04] px-4 py-3 text-sm text-white outline-none"
+                      />
+                      <div className="flex flex-wrap items-center gap-2">
+                        <span className="rounded-full border border-white/10 px-3 py-2 text-xs text-white/55">
+                          {messageSearch.trim()
+                            ? `${filteredMessages.length} ${filteredMessages.length === 1 ? "match" : "matches"}`
+                            : "Filter loaded messages"}
+                        </span>
+                        <button
+                          type="button"
+                          onClick={() => setMessageSearch("")}
+                          className="rounded-full border border-white/10 px-3 py-2 text-xs text-white/60"
+                        >
+                          Clear
+                        </button>
+                        <button
+                          type="button"
+                          onClick={closeSearchPanel}
+                          className="rounded-full border border-white/10 px-3 py-2 text-xs text-white/60"
+                        >
+                          Close
+                        </button>
+                      </div>
+                    </div>
+                  </div>
+                </motion.div>
+              ) : null}
+            </AnimatePresence>
             {pinnedMessages.length ? (
               <div className="mt-4 flex flex-wrap gap-2">
                 {pinnedMessages.slice(0, 3).map((message) => (
-                  <button key={message.id} type="button" onClick={() => setMessageSearch(message.preview)} className="rounded-full border border-white/10 bg-white/[0.04] px-3 py-2 text-xs text-white/70">
+                  <button
+                    key={message.id}
+                    type="button"
+                    onClick={() => openSearchPanel(message.preview)}
+                    className="rounded-full border border-white/10 bg-white/[0.04] px-3 py-2 text-xs text-white/70"
+                  >
                     Pinned: {message.preview.slice(0, 48)}
                   </button>
                 ))}
