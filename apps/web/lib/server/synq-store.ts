@@ -22,6 +22,7 @@ import {
   type AttachmentObject,
   type AttachmentSignRequest,
   type AttachmentUploadRequest,
+  type Channel,
   type Conversation,
   type Device,
   type MessageEnvelope,
@@ -29,7 +30,6 @@ import {
   type SynqBootstrapState,
   type User,
   SynqBootstrapStateSchema,
-  createDemoState,
 } from "@synq/protocol";
 import { Pool } from "pg";
 
@@ -56,6 +56,11 @@ const DEFAULT_GROUP_ID = "conv_group_core";
 const DEFAULT_ROOM_ID = "conv_workspace_launch";
 const DEFAULT_CHANNEL_ID = "conv_creator";
 const POSTGRES_URL = process.env.POSTGRES_URL ?? process.env.DATABASE_URL ?? "";
+const SEEDED_USER_IDS = new Set(["user_me", "user_arya", "user_kai"]);
+const SEEDED_HANDLES = new Set(["numa.ghost", "arya.sol", "kai.vale"]);
+const SEEDED_DEVICE_IDS = new Set(["dev_01", "dev_02", "dev_03", "dev_pending_me"]);
+const SEEDED_CONVERSATION_IDS = new Set(["conv_dm_arya"]);
+const SEEDED_RECOVERY_VALUES = new Set(["numa@synq.local", "+91-00000-00000"]);
 
 let pool: Pool | null = null;
 let schemaReady: Promise<void> | null = null;
@@ -124,62 +129,247 @@ function createSessionDevice(userId: string): Device {
 }
 
 function createSharedSeedState() {
-  const state = structuredClone(createDemoState());
+  const issuedAt = nowIso();
+  const placeholderUserId = "bootstrap";
+  const placeholderDeviceId = "bootstrap_device";
+  const channels: Channel[] = [
+    {
+      id: "channel_ops",
+      workspaceId: DEFAULT_WORKSPACE_ID,
+      name: "lobby-feed",
+      purpose: "Shared room for everyone who joins Synq.",
+      kind: "workspace_room",
+      visibility: "managed_private",
+      unreadCount: 0,
+    },
+    {
+      id: "channel_stage",
+      workspaceId: DEFAULT_BROADCAST_ID,
+      name: "product-news",
+      purpose: "Announcements and launch notes from the project owner.",
+      kind: "creator_channel",
+      visibility: "managed_broadcast",
+      unreadCount: 0,
+    },
+  ];
 
-  state.deviceApprovals = [];
-  state.devices = state.devices
-    .filter((device) => device.userId !== "user_me" || device.id === "dev_01")
-    .map((device) => ({
-      ...device,
-      trustState: "approved",
-      approvedAt: device.approvedAt ?? nowIso(),
-    }));
-
-  state.conversations = state.conversations.map((conversation) => {
-    if (conversation.kind === "creator_channel") {
-      return {
-        ...conversation,
+  return SynqBootstrapStateSchema.parse({
+    currentUserId: placeholderUserId,
+    currentDeviceId: placeholderDeviceId,
+    activeSession: {
+      id: "bootstrap_session",
+      userId: placeholderUserId,
+      deviceId: placeholderDeviceId,
+      scope: "web",
+      accessToken: "bootstrap_access",
+      refreshToken: "bootstrap_refresh",
+      issuedAt,
+      expiresAt: issuedAt,
+      refreshExpiresAt: issuedAt,
+      pendingApproval: false,
+    },
+    users: [],
+    recoveryMethods: [],
+    devices: [],
+    passkeys: [],
+    deviceApprovals: [],
+    workspacePolicies: [
+      {
+        id: "policy_synq",
+        workspaceId: DEFAULT_WORKSPACE_ID,
+        aiPolicy: "local_only",
+        inviteOnly: false,
+        retentionDays: 90,
+      },
+      {
+        id: "policy_ghost",
+        workspaceId: DEFAULT_BROADCAST_ID,
+        aiPolicy: "managed_opt_in",
+        inviteOnly: false,
+        retentionDays: 365,
+      },
+    ],
+    workspaces: [
+      {
+        id: DEFAULT_WORKSPACE_ID,
+        name: "Synq Lobby",
+        slug: "synq-lobby",
+        description: "Shared space for everyone using the live Synq demo.",
+        ambientScene: "Aurora Vault",
+        memberCount: 0,
+        aiPolicy: "local",
+        policyId: "policy_synq",
+      },
+      {
+        id: DEFAULT_BROADCAST_ID,
+        name: "Synq Broadcast",
+        slug: "synq-broadcast",
+        description: "Product updates, drops, and public announcements.",
+        ambientScene: "Coral Drift",
+        memberCount: 0,
+        aiPolicy: "ephemeral_cloud",
+        policyId: "policy_ghost",
+      },
+    ],
+    circles: [],
+    conversations: [
+      {
+        id: DEFAULT_GROUP_ID,
+        title: "Common Room",
+        subtitle: "Private group",
+        kind: "private_group",
+        visibility: "managed_private",
+        participantIds: [],
+        unreadCount: 0,
+        lastActivityAt: issuedAt,
+        lastMessagePreview: "No signals yet. Say hi to start the room.",
+        messageProtection: "managed_plaintext",
+        aiPolicyOverride: "inherit",
+      },
+      {
+        id: DEFAULT_ROOM_ID,
+        title: "Lobby Feed",
+        subtitle: "Synq Lobby",
+        kind: "workspace_room",
+        visibility: "managed_private",
+        participantIds: [],
+        unreadCount: 0,
+        lastActivityAt: issuedAt,
+        lastMessagePreview: "No signals yet. Start the conversation.",
+        messageProtection: "managed_plaintext",
+        aiPolicyOverride: "inherit",
+        workspaceId: DEFAULT_WORKSPACE_ID,
+      },
+      {
+        id: DEFAULT_CHANNEL_ID,
+        title: "Product News",
+        subtitle: "Broadcast room",
+        kind: "creator_channel",
         visibility: "managed_broadcast",
+        participantIds: [],
+        unreadCount: 0,
+        lastActivityAt: issuedAt,
+        lastMessagePreview: "Announcements will show up here.",
         messageProtection: "managed_plaintext",
         aiPolicyOverride: "ephemeral_cloud",
-      };
+        workspaceId: DEFAULT_BROADCAST_ID,
+      },
+    ],
+    channels,
+    attachmentObjects: [],
+    messages: [],
+    presence: [],
+    auditEvents: [],
+    disappearingJobs: [],
+  });
+}
+
+function stripSeededArtifacts(state: SynqBootstrapState) {
+  const nextState = structuredClone(state);
+  const seededUserIds = new Set(
+    nextState.users
+      .filter(
+        (user) =>
+          SEEDED_USER_IDS.has(user.id) ||
+          SEEDED_HANDLES.has(user.handle.toLowerCase()),
+      )
+      .map((user) => user.id),
+  );
+
+  const seededDeviceIds = new Set(
+    nextState.devices
+      .filter(
+        (device) =>
+          SEEDED_DEVICE_IDS.has(device.id) || seededUserIds.has(device.userId),
+      )
+      .map((device) => device.id),
+  );
+
+  nextState.users = nextState.users.filter((user) => !seededUserIds.has(user.id));
+  nextState.recoveryMethods = nextState.recoveryMethods.filter((method) => {
+    if (SEEDED_RECOVERY_VALUES.has(method.value)) {
+      return false;
     }
 
-    return {
-      ...conversation,
-      visibility: "managed_private",
-      messageProtection: "managed_plaintext",
-      lastMessagePreview:
-        conversation.kind === "dm"
-          ? "Private direct line is open."
-          : conversation.kind === "private_group"
-            ? "Crew room is live."
-            : conversation.lastMessagePreview,
-      disappearingSeconds: undefined,
-    };
+    return ![...seededUserIds].some((userId) => method.id.includes(userId));
   });
+  nextState.devices = nextState.devices.filter(
+    (device) => !seededDeviceIds.has(device.id) && !seededUserIds.has(device.userId),
+  );
+  nextState.passkeys = nextState.passkeys.filter(
+    (passkey) =>
+      !seededUserIds.has(passkey.userId) && !seededDeviceIds.has(passkey.deviceId),
+  );
+  nextState.deviceApprovals = nextState.deviceApprovals.filter(
+    (approval) =>
+      !seededUserIds.has(approval.userId) &&
+      !seededDeviceIds.has(approval.deviceId) &&
+      (!approval.approvedByDeviceId ||
+        !seededDeviceIds.has(approval.approvedByDeviceId)),
+  );
+  nextState.attachmentObjects = nextState.attachmentObjects.filter(
+    (attachment) => !seededUserIds.has(attachment.ownerUserId),
+  );
+  nextState.messages = nextState.messages.filter(
+    (message) =>
+      !seededUserIds.has(message.senderId) &&
+      !SEEDED_CONVERSATION_IDS.has(message.conversationId),
+  );
+  nextState.presence = nextState.presence.filter(
+    (presence) => !seededUserIds.has(presence.userId),
+  );
+  nextState.auditEvents = nextState.auditEvents.filter(
+    (event) =>
+      (!event.userId || !seededUserIds.has(event.userId)) &&
+      (!event.deviceId || !seededDeviceIds.has(event.deviceId)),
+  );
+  nextState.disappearingJobs = nextState.disappearingJobs.filter((job) =>
+    nextState.messages.some((message) => message.id === job.messageId),
+  );
 
-  state.messages = state.messages.map((message) => ({
-    ...message,
-    preview:
-      message.preview === "Encrypted message"
-        ? "Private beta signal."
-        : message.preview,
-    messageProtection: "managed_plaintext",
-  }));
+  nextState.conversations = nextState.conversations
+    .filter(
+      (conversation) =>
+        !SEEDED_CONVERSATION_IDS.has(conversation.id) &&
+        !(
+          conversation.kind === "dm" &&
+          conversation.participantIds.some((participantId) =>
+            seededUserIds.has(participantId),
+          )
+        ),
+    )
+    .map((conversation) =>
+      conversation.kind === "dm"
+        ? conversation
+        : {
+            ...conversation,
+            participantIds: conversation.participantIds.filter(
+              (participantId) => !seededUserIds.has(participantId),
+            ),
+            unreadCount: 0,
+            lastMessagePreview:
+              nextState.messages
+                .filter((message) => message.conversationId === conversation.id)
+                .at(-1)?.preview ??
+              (conversation.kind === "creator_channel"
+                ? "Announcements will show up here."
+                : "No signals yet. Start the conversation."),
+          },
+    );
 
-  state.workspaces = state.workspaces.map((workspace) => ({
-    ...workspace,
-    memberCount: state.users.length,
-  }));
+  nextState.currentUserId = nextState.users[0]?.id ?? "bootstrap";
+  nextState.currentDeviceId =
+    nextState.devices.find((device) => device.userId === nextState.currentUserId)?.id ??
+    nextState.devices[0]?.id ??
+    "bootstrap_device";
+  nextState.activeSession = {
+    ...nextState.activeSession,
+    userId: nextState.currentUserId,
+    deviceId: nextState.currentDeviceId,
+  };
 
-  state.circles = state.circles.map((circle) => ({
-    ...circle,
-    visibility: "managed_private",
-    memberCount: state.users.length,
-  }));
-
-  return state;
+  syncSharedMembership(nextState);
+  return nextState;
 }
 
 function getMemoryState() {
@@ -274,7 +464,17 @@ async function loadState() {
       return seed;
     }
 
-    return SynqBootstrapStateSchema.parse(result.rows[0].state);
+    const parsed = SynqBootstrapStateSchema.parse(result.rows[0].state);
+    const sanitized = stripSeededArtifacts(parsed);
+
+    if (JSON.stringify(parsed) !== JSON.stringify(sanitized)) {
+      await client.query(
+        "UPDATE synq_app_state SET state = $2::jsonb, updated_at = NOW() WHERE id = $1",
+        [STORE_ROW_ID, JSON.stringify(sanitized)],
+      );
+    }
+
+    return sanitized;
   } finally {
     client.release();
   }

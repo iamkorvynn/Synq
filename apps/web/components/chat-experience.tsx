@@ -7,7 +7,6 @@ import { AnimatePresence, motion, useReducedMotion } from "framer-motion";
 
 import { bytesToBase64String, encryptAttachmentBytes } from "@synq/crypto";
 import type { Attachment, Conversation, MessageEnvelope, RealtimeEnvelope, SynqBootstrapState } from "@synq/protocol";
-import { createDemoState } from "@synq/protocol";
 import { GlassCard, SectionLabel, StatusPill, motionTokens } from "@synq/ui";
 
 import {
@@ -115,12 +114,12 @@ export function ChatExperience() {
   );
 
   const localSummary = useMemo(
-    () => summarizeConversation(resolvedMessages as MessageEnvelope[], state?.users ?? createDemoState().users, state?.currentUserId ?? createDemoState().currentUserId),
+    () => summarizeConversation(resolvedMessages as MessageEnvelope[], state?.users ?? [], state?.currentUserId ?? ""),
     [resolvedMessages, state?.currentUserId, state?.users],
   );
 
   const relationshipMemory = useMemo(
-    () => buildRelationshipMemory(resolvedMessages as MessageEnvelope[], state?.users ?? createDemoState().users, state?.currentUserId ?? createDemoState().currentUserId),
+    () => buildRelationshipMemory(resolvedMessages as MessageEnvelope[], state?.users ?? [], state?.currentUserId ?? ""),
     [resolvedMessages, state?.currentUserId, state?.users],
   );
 
