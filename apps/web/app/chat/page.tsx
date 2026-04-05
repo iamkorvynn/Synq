@@ -5,9 +5,9 @@ import { ChatExperience } from "@/components/chat-experience";
 
 export default function ChatPage() {
   return (
-    <main className="min-h-screen px-4 py-4 sm:px-6 lg:px-8">
-      <div className="mx-auto max-w-[1600px]">
-        <div className="mb-6 flex flex-wrap items-end justify-between gap-4">
+    <main className="min-h-screen px-4 py-4 sm:px-6 lg:px-8 xl:h-[100dvh] xl:overflow-hidden">
+      <div className="mx-auto max-w-[1600px] xl:flex xl:h-full xl:min-h-0 xl:flex-col">
+        <div className="mb-6 flex shrink-0 flex-wrap items-end justify-between gap-4">
           <div>
             <p className="text-xs uppercase tracking-[0.35em] text-white/45">
               Synq console
@@ -21,17 +21,19 @@ export default function ChatPage() {
           </div>
         </div>
 
-        <ChatErrorBoundary>
-          <Suspense
-            fallback={
-              <div className="rounded-[32px] border border-white/10 bg-white/[0.04] p-8 text-white/70 backdrop-blur-2xl">
-                Loading Synq...
-              </div>
-            }
-          >
-            <ChatExperience />
-          </Suspense>
-        </ChatErrorBoundary>
+        <div className="xl:min-h-0 xl:flex-1">
+          <ChatErrorBoundary>
+            <Suspense
+              fallback={
+                <div className="rounded-[32px] border border-white/10 bg-white/[0.04] p-8 text-white/70 backdrop-blur-2xl xl:flex xl:h-full xl:min-h-0 xl:items-center">
+                  Loading Synq...
+                </div>
+              }
+            >
+              <ChatExperience />
+            </Suspense>
+          </ChatErrorBoundary>
+        </div>
       </div>
     </main>
   );

@@ -22,7 +22,7 @@ import type {
   SynqBootstrapState,
   User,
 } from "@synq/protocol";
-import { GlassCard, SectionLabel, StatusPill, motionTokens } from "@synq/ui";
+import { cx, GlassCard, SectionLabel, StatusPill, motionTokens } from "@synq/ui";
 
 import {
   blockUser,
@@ -72,6 +72,8 @@ import { TrustOrb } from "./trust-orb";
 
 type AuthStage = "loading" | "signed_out" | "ready";
 type ToastTone = "success" | "error" | "info";
+type DockTab = "memory" | "profile" | "safety" | "ai";
+type OnboardingStep = "identity" | "privacy" | "enter";
 
 type ToastState = { id: string; tone: ToastTone; message: string };
 
@@ -86,6 +88,17 @@ type ProfileDraft = {
 };
 
 const QUICK_REACTIONS = ["👍", "🔥", "🫶", "👀"];
+const DOCK_TABS: Array<{ id: DockTab; label: string; caption: string }> = [
+  { id: "memory", label: "Memory", caption: "Context and pinned signals" },
+  { id: "profile", label: "Profile", caption: "Identity, discovery, and contacts" },
+  { id: "safety", label: "Safety", caption: "Devices, reports, and account controls" },
+  { id: "ai", label: "AI", caption: "Rewrite, workspace pulse, and dock tools" },
+];
+const ONBOARDING_STEPS: Array<{ id: OnboardingStep; label: string }> = [
+  { id: "identity", label: "Identity" },
+  { id: "privacy", label: "Privacy" },
+  { id: "enter", label: "Enter Synq" },
+];
 
 function formatClock(value: string) {
   return new Intl.DateTimeFormat("en-IN", {
@@ -136,6 +149,53 @@ function displayAvatar(user?: User | null) {
   return user.hiddenAvatar ? "--" : user.avatar;
 }
 
+function roomGlyph(conversation?: Conversation | null) {
+  if (!conversation) return "??";
+  if (conversation.kind === "creator_channel") return "BC";
+  if (conversation.kind === "dm") return "DM";
+  if (conversation.visibility === "e2ee") return "E2";
+  return conversation.title
+    .split(/\s+/)
+    .slice(0, 2)
+    .map((part) => part[0]?.toUpperCase() ?? "")
+    .join("")
+    .padEnd(2, "S");
+}
+
+function workspaceGlyph(name: string) {
+  return name
+    .split(/\s+/)
+    .slice(0, 2)
+    .map((part) => part[0]?.toUpperCase() ?? "")
+    .join("")
+    .slice(0, 2);
+}
+
+function formatAttachmentSize(size: number) {
+  if (size < 1024) return `${size} B`;
+  if (size < 1024 * 1024) return `${Math.round(size / 1024)} KB`;
+  return `${(size / (1024 * 1024)).toFixed(1)} MB`;
+}
+
+function attachmentKind(attachment: Attachment) {
+  if (attachment.mimeType.startsWith("audio/")) return "voice";
+  if (attachment.mimeType.startsWith("image/")) return "image";
+  return "file";
+}
+
+function conversationTone(conversation?: Conversation | null): "sealed" | "managed" | "broadcast" {
+  if (!conversation) return "sealed";
+  if (conversation.kind === "creator_channel") return "broadcast";
+  return conversation.visibility === "e2ee" ? "sealed" : "managed";
+}
+
+function conversationAmbientClass(conversation?: Conversation | null) {
+  const tone = conversationTone(conversation);
+  if (tone === "broadcast") return "synq-ambient synq-ambient--broadcast";
+  if (tone === "managed") return "synq-ambient synq-ambient--managed";
+  return "synq-ambient synq-ambient--sealed";
+}
+
 export function ChatExperience() {
   const { status, data: session } = useSession();
   const searchParams = useSearchParams();
@@ -179,11 +239,15 @@ export function ChatExperience() {
   const [toasts, setToasts] = useState<ToastState[]>([]);
   const [cloudResult, setCloudResult] = useState("");
   const [recordingVoice, setRecordingVoice] = useState(false);
+  const [activeDockTab, setActiveDockTab] = useState<DockTab>("memory");
+  const [onboardingStep, setOnboardingStep] = useState<OnboardingStep>("identity");
+  const [showJumpToLatest, setShowJumpToLatest] = useState(false);
   const deferredDraft = useDeferredValue(draft);
   const typingTimeoutRef = useRef<ReturnType<typeof setTimeout> | null>(null);
   const mediaRecorderRef = useRef<MediaRecorder | null>(null);
   const searchInputRef = useRef<HTMLInputElement | null>(null);
   const utilitiesRef = useRef<HTMLDivElement | null>(null);
+  const messageListRef = useRef<HTMLDivElement | null>(null);
 
   const currentUser = useMemo(
     () => state?.users.find((user) => user.id === state.currentUserId) ?? null,
@@ -243,6 +307,30 @@ export function ChatExperience() {
       message.preview.toLowerCase().includes(needle),
     );
   }, [messageSearch, resolvedMessages]);
+  const decoratedMessages = useMemo(
+    () =>
+      filteredMessages.map((message, index, array) => {
+        const previous = array[index - 1];
+        const next = array[index + 1];
+        const previousGap = previous
+          ? Math.abs(new Date(message.createdAt).getTime() - new Date(previous.createdAt).getTime())
+          : Number.POSITIVE_INFINITY;
+        const nextGap = next
+          ? Math.abs(new Date(next.createdAt).getTime() - new Date(message.createdAt).getTime())
+          : Number.POSITIVE_INFINITY;
+
+        return {
+          message,
+          groupedWithPrevious:
+            Boolean(previous) &&
+            previous.senderId === message.senderId &&
+            previousGap < 5 * 60 * 1000,
+          groupedWithNext:
+            Boolean(next) && next.senderId === message.senderId && nextGap < 5 * 60 * 1000,
+        };
+      }),
+    [filteredMessages],
+  );
   const replyTarget = useMemo(
     () =>
       resolvedMessages.find(
@@ -284,6 +372,19 @@ export function ChatExperience() {
         .filter(Boolean) as User[],
     [currentUser?.id, selectedConversation?.typingUserIds, state?.users],
   );
+  const totalUnreadCount = useMemo(
+    () =>
+      state?.conversations.reduce((count, conversation) => count + conversation.unreadCount, 0) ??
+      0,
+    [state?.conversations],
+  );
+  const ghostPreviewIdentity =
+    profileDraft.profileVisibility === "handle_only" || profileDraft.ghostMode
+      ? `@${currentUser?.handle ?? "ghost"}`
+      : profileDraft.name || currentUser?.name || "Synq User";
+  const ghostPreviewAvatar = profileDraft.hiddenAvatar
+    ? "--"
+    : profileDraft.avatar || currentUser?.avatar || "S";
 
   function pushToast(tone: ToastTone, message: string) {
     const id = crypto.randomUUID();
@@ -291,6 +392,15 @@ export function ChatExperience() {
     window.setTimeout(() => {
       setToasts((current) => current.filter((toast) => toast.id !== id));
     }, 3500);
+  }
+
+  function scrollConversationToLatest(behavior: ScrollBehavior = "smooth") {
+    const container = messageListRef.current;
+    if (!container) return;
+    container.scrollTo({
+      top: container.scrollHeight,
+      behavior,
+    });
   }
 
   function closeSearchPanel() {
@@ -407,6 +517,32 @@ export function ChatExperience() {
     setIsUtilitiesOpen(false);
     closeSearchPanel();
   }, [selectedConversation?.id]);
+
+  useEffect(() => {
+    const container = messageListRef.current;
+    if (!container) return;
+
+    const updateJumpState = () => {
+      const distanceFromBottom =
+        container.scrollHeight - container.scrollTop - container.clientHeight;
+      setShowJumpToLatest(distanceFromBottom > 140);
+    };
+
+    updateJumpState();
+    container.addEventListener("scroll", updateJumpState);
+    return () => container.removeEventListener("scroll", updateJumpState);
+  }, [selectedConversation?.id, filteredMessages.length]);
+
+  useEffect(() => {
+    const container = messageListRef.current;
+    if (!container) return;
+    const distanceFromBottom =
+      container.scrollHeight - container.scrollTop - container.clientHeight;
+    if (distanceFromBottom < 140) {
+      const frame = window.requestAnimationFrame(() => scrollConversationToLatest("auto"));
+      return () => window.cancelAnimationFrame(frame);
+    }
+  }, [filteredMessages.length, selectedConversation?.id]);
 
   useEffect(() => {
     if (!isSearchOpen) {
@@ -919,43 +1055,264 @@ export function ChatExperience() {
 
   if (!currentUser.onboardingComplete) {
     return (
-      <div className="grid gap-6 xl:grid-cols-[1.05fr_0.95fr]">
-        <GlassCard className="p-8 sm:p-10">
+      <div className="grid gap-6 xl:grid-cols-[minmax(0,1.05fr)_420px]">
+        <GlassCard className="synq-ambient synq-ambient--sealed p-8 sm:p-10">
           <SectionLabel>Onboarding</SectionLabel>
-          <h2 className="mt-4 font-[family-name:var(--font-display)] text-4xl text-white">
-            Finish your identity and privacy defaults.
+          <div className="mt-4 flex flex-wrap items-center gap-2">
+            {ONBOARDING_STEPS.map((step, index) => {
+              const isActive = onboardingStep === step.id;
+              const isComplete =
+                ONBOARDING_STEPS.findIndex((candidate) => candidate.id === onboardingStep) > index;
+              return (
+                <button
+                  key={step.id}
+                  type="button"
+                  onClick={() => setOnboardingStep(step.id)}
+                  className={cx(
+                    "rounded-full border px-4 py-2 text-sm transition",
+                    isActive
+                      ? "border-[#5DE4FF]/40 bg-[#5DE4FF]/12 text-white"
+                      : isComplete
+                        ? "border-[#98FFD5]/25 bg-[#98FFD5]/8 text-white/78"
+                        : "border-white/10 bg-white/[0.04] text-white/48",
+                  )}
+                >
+                  {step.label}
+                </button>
+              );
+            })}
+          </div>
+          <h2 className="mt-6 font-[family-name:var(--font-display)] text-4xl text-white">
+            Shape how Synq sees you before you enter the network.
           </h2>
+          <p className="mt-4 max-w-2xl text-white/62">
+            The setup is split into identity, privacy, and final entry so the live app
+            already feels like yours before the first message.
+          </p>
           {authError ? (
             <div className="mt-6 rounded-[24px] border border-[#FF7A6E]/30 bg-[#FF7A6E]/10 px-4 py-3 text-sm text-[#FFD1CB]">
               {authError}
             </div>
           ) : null}
-          <div className="mt-8 grid gap-4 md:grid-cols-2">
-            <input value={onboardingName} onChange={(event) => setOnboardingName(event.target.value)} placeholder="Display name" className="rounded-2xl border border-white/10 bg-white/[0.04] px-4 py-3 text-white outline-none" />
-            <input value={onboardingHandle} onChange={(event) => setOnboardingHandle(event.target.value)} placeholder="handle" className="rounded-2xl border border-white/10 bg-white/[0.04] px-4 py-3 text-white outline-none" />
-            <input value={recoveryEmail} onChange={(event) => setRecoveryEmail(event.target.value)} placeholder="Recovery email" className="rounded-2xl border border-white/10 bg-white/[0.04] px-4 py-3 text-white outline-none" />
-            <input value={recoveryPhone} onChange={(event) => setRecoveryPhone(event.target.value)} placeholder="Recovery phone" className="rounded-2xl border border-white/10 bg-white/[0.04] px-4 py-3 text-white outline-none" />
-          </div>
-          <div className="mt-6 grid gap-3 rounded-[28px] border border-white/8 bg-white/[0.03] p-4 text-sm text-white/70">
-            <label className="flex items-center justify-between gap-3"><span>Ghost mode</span><input type="checkbox" checked={ghostMode} onChange={(event) => setGhostMode(event.target.checked)} /></label>
-            <label className="flex items-center justify-between gap-3"><span>Hide avatar</span><input type="checkbox" checked={onboardingHiddenAvatar} onChange={(event) => setOnboardingHiddenAvatar(event.target.checked)} /></label>
-            <label className="flex items-center justify-between gap-3"><span>Private discovery</span><input type="checkbox" checked={onboardingPrivateDiscovery} onChange={(event) => setOnboardingPrivateDiscovery(event.target.checked)} /></label>
-            <div className="flex flex-wrap gap-2">
-              {(["handle_only", "full"] as ProfileVisibility[]).map((mode) => (
-                <button key={mode} type="button" onClick={() => setOnboardingVisibility(mode)} className={`rounded-full border px-3 py-2 text-xs ${onboardingVisibility === mode ? "border-[#5DE4FF]/40 bg-[#5DE4FF]/10 text-white" : "border-white/10 text-white/55"}`}>
-                  {mode === "handle_only" ? "Handle only" : "Full name"}
-                </button>
-              ))}
+
+          {onboardingStep === "identity" ? (
+            <div className="mt-8 grid gap-4 md:grid-cols-2">
+              <label className="grid gap-2">
+                <span className="text-sm text-white/58">Display name</span>
+                <input
+                  value={onboardingName}
+                  onChange={(event) => setOnboardingName(event.target.value)}
+                  placeholder="Display name"
+                  className="rounded-[22px] border border-white/10 bg-white/[0.04] px-4 py-3 text-white outline-none"
+                />
+              </label>
+              <label className="grid gap-2">
+                <span className="text-sm text-white/58">Handle</span>
+                <input
+                  value={onboardingHandle}
+                  onChange={(event) => setOnboardingHandle(event.target.value)}
+                  placeholder="handle"
+                  className="rounded-[22px] border border-white/10 bg-white/[0.04] px-4 py-3 text-white outline-none"
+                />
+              </label>
+              <div className="rounded-[24px] border border-white/8 bg-white/[0.03] p-4 md:col-span-2">
+                <p className="text-sm text-white/54">How you will appear at a glance</p>
+                <div className="mt-4 flex items-center gap-4">
+                  <div className="synq-sigil flex h-14 w-14 items-center justify-center rounded-[20px] border border-white/10 text-lg font-semibold text-white">
+                    {(onboardingHandle.trim()[0] ?? onboardingName.trim()[0] ?? "S").toUpperCase()}
+                  </div>
+                  <div>
+                    <p className="text-lg font-semibold text-white">
+                      @{onboardingHandle.trim() || "your.handle"}
+                    </p>
+                    <p className="text-sm text-white/58">
+                      {onboardingName.trim() || "Display name preview"}
+                    </p>
+                  </div>
+                </div>
+              </div>
             </div>
+          ) : null}
+
+          {onboardingStep === "privacy" ? (
+            <div className="mt-8 grid gap-4">
+              <div className="grid gap-3 rounded-[28px] border border-white/8 bg-white/[0.03] p-4 text-sm text-white/70">
+                <label className="flex items-center justify-between gap-3">
+                  <span>Ghost mode</span>
+                  <input
+                    type="checkbox"
+                    checked={ghostMode}
+                    onChange={(event) => setGhostMode(event.target.checked)}
+                  />
+                </label>
+                <label className="flex items-center justify-between gap-3">
+                  <span>Hide avatar</span>
+                  <input
+                    type="checkbox"
+                    checked={onboardingHiddenAvatar}
+                    onChange={(event) => setOnboardingHiddenAvatar(event.target.checked)}
+                  />
+                </label>
+                <label className="flex items-center justify-between gap-3">
+                  <span>Private discovery</span>
+                  <input
+                    type="checkbox"
+                    checked={onboardingPrivateDiscovery}
+                    onChange={(event) => setOnboardingPrivateDiscovery(event.target.checked)}
+                  />
+                </label>
+                <div className="flex flex-wrap gap-2 pt-2">
+                  {(["handle_only", "full"] as ProfileVisibility[]).map((mode) => (
+                    <button
+                      key={mode}
+                      type="button"
+                      onClick={() => setOnboardingVisibility(mode)}
+                      className={cx(
+                        "rounded-full border px-3 py-2 text-xs transition",
+                        onboardingVisibility === mode
+                          ? "border-[#5DE4FF]/40 bg-[#5DE4FF]/10 text-white"
+                          : "border-white/10 text-white/55",
+                      )}
+                    >
+                      {mode === "handle_only" ? "Handle only" : "Full name"}
+                    </button>
+                  ))}
+                </div>
+              </div>
+              <div className="rounded-[28px] border border-white/8 bg-black/20 p-5">
+                <p className="text-xs tracking-[0.28em] text-white/40">LIVE PREVIEW</p>
+                <div className="mt-4 flex items-center gap-4">
+                  <div className="synq-sigil flex h-16 w-16 items-center justify-center rounded-[22px] border border-white/10 text-lg font-semibold text-white">
+                    {onboardingHiddenAvatar
+                      ? "--"
+                      : (onboardingHandle.trim()[0] ?? onboardingName.trim()[0] ?? "S").toUpperCase()}
+                  </div>
+                  <div>
+                    <div className="flex items-center gap-2">
+                      <p className="text-lg font-semibold text-white">
+                        {ghostMode || onboardingVisibility === "handle_only"
+                          ? `@${onboardingHandle.trim() || "your.handle"}`
+                          : onboardingName.trim() || "Display name"}
+                      </p>
+                      {ghostMode ? (
+                        <StatusPill tone="mint" className="text-[10px] tracking-[0.18em]">
+                          STEALTH
+                        </StatusPill>
+                      ) : null}
+                    </div>
+                    <p className="text-sm text-white/54">
+                      {onboardingPrivateDiscovery
+                        ? "Only exact-handle discovery is enabled."
+                        : "People can discover you through search and shared spaces."}
+                    </p>
+                  </div>
+                </div>
+              </div>
+            </div>
+          ) : null}
+
+          {onboardingStep === "enter" ? (
+            <div className="mt-8 grid gap-4 md:grid-cols-2">
+              <label className="grid gap-2">
+                <span className="text-sm text-white/58">Recovery email</span>
+                <input
+                  value={recoveryEmail}
+                  onChange={(event) => setRecoveryEmail(event.target.value)}
+                  placeholder="Recovery email"
+                  className="rounded-[22px] border border-white/10 bg-white/[0.04] px-4 py-3 text-white outline-none"
+                />
+              </label>
+              <label className="grid gap-2">
+                <span className="text-sm text-white/58">Recovery phone</span>
+                <input
+                  value={recoveryPhone}
+                  onChange={(event) => setRecoveryPhone(event.target.value)}
+                  placeholder="Recovery phone"
+                  className="rounded-[22px] border border-white/10 bg-white/[0.04] px-4 py-3 text-white outline-none"
+                />
+              </label>
+              <div className="rounded-[28px] border border-white/8 bg-white/[0.03] p-5 md:col-span-2">
+                <p className="text-xs tracking-[0.28em] text-white/40">ENTRY CHECKLIST</p>
+                <div className="mt-4 grid gap-3 text-sm text-white/68">
+                  <p>Handle: @{onboardingHandle.trim() || "your.handle"}</p>
+                  <p>Mode: {ghostMode ? "Ghost mode with a handle-first profile" : "Visible profile"}</p>
+                  <p>
+                    Discovery:{" "}
+                    {onboardingPrivateDiscovery ? "Private and exact-handle only" : "Open inside Synq"}
+                  </p>
+                  <p>
+                    Recovery:{" "}
+                    {recoveryEmail.trim() || recoveryPhone.trim()
+                      ? "At least one recovery path is set."
+                      : "No recovery method yet; you can still add one later."}
+                  </p>
+                </div>
+              </div>
+            </div>
+          ) : null}
+
+          <div className="mt-8 flex flex-wrap items-center justify-between gap-3">
+            <button
+              type="button"
+              onClick={() => {
+                const index = ONBOARDING_STEPS.findIndex((step) => step.id === onboardingStep);
+                if (index > 0) {
+                  setOnboardingStep(ONBOARDING_STEPS[index - 1].id);
+                }
+              }}
+              className="rounded-full border border-white/10 px-4 py-2 text-sm text-white/65"
+            >
+              Back
+            </button>
+            {onboardingStep !== "enter" ? (
+              <button
+                type="button"
+                onClick={() => {
+                  const index = ONBOARDING_STEPS.findIndex((step) => step.id === onboardingStep);
+                  if (onboardingStep === "identity" && (!onboardingName.trim() || !onboardingHandle.trim())) {
+                    setAuthError("Name and handle are required before you can continue.");
+                    return;
+                  }
+                  setAuthError("");
+                  setOnboardingStep(ONBOARDING_STEPS[Math.min(index + 1, ONBOARDING_STEPS.length - 1)].id);
+                }}
+                className="rounded-full bg-[linear-gradient(135deg,#5DE4FF,#FF7A6E)] px-6 py-3 font-medium text-[#071019]"
+              >
+                Continue
+              </button>
+            ) : (
+              <button
+                type="button"
+                onClick={() => void handleOnboardingSubmit()}
+                className="rounded-full bg-[linear-gradient(135deg,#5DE4FF,#FF7A6E)] px-6 py-3 font-medium text-[#071019]"
+              >
+                Enter Synq
+              </button>
+            )}
           </div>
-          <button type="button" onClick={() => void handleOnboardingSubmit()} className="mt-8 rounded-full bg-[linear-gradient(135deg,#5DE4FF,#FF7A6E)] px-6 py-3 font-medium text-[#071019]">
-            Finish onboarding
-          </button>
         </GlassCard>
         <GlassCard className="p-6">
           <SectionLabel>Trust surface</SectionLabel>
           <div className="mt-4">
-            <TrustOrb />
+            <TrustOrb
+              ghostMode={ghostMode}
+              queuedCount={0}
+              typing={onboardingStep === "privacy"}
+              unreadCount={0}
+              tone="sealed"
+            />
+          </div>
+          <div className="mt-5 rounded-[26px] border border-white/8 bg-white/[0.03] p-5">
+            <p className="text-xs tracking-[0.26em] text-white/40">IDENTITY RITUAL</p>
+            <p className="mt-3 text-lg font-semibold text-white">
+              {ghostMode || onboardingVisibility === "handle_only"
+                ? `@${onboardingHandle.trim() || "your.handle"}`
+                : onboardingName.trim() || "Display name"}
+            </p>
+            <p className="mt-2 text-sm leading-6 text-white/58">
+              Synq is handle-first, privacy-aware, and calmer by default. This preview updates
+              live while you tune ghost mode, visibility, and recovery choices.
+            </p>
           </div>
         </GlassCard>
       </div>
@@ -976,81 +1333,257 @@ export function ChatExperience() {
         ) : null}
       </AnimatePresence>
 
-      <div className="grid gap-4 xl:grid-cols-[92px_320px_minmax(0,1fr)_360px]">
-        <motion.aside layout transition={reduceMotion ? undefined : motionTokens.spring} className="space-y-4">
+      <div className="grid gap-4 xl:h-full xl:min-h-0 xl:grid-cols-[108px_336px_minmax(0,1fr)_388px]">
+        <motion.aside
+          layout
+          transition={reduceMotion ? undefined : motionTokens.spring}
+          className="synq-scroll space-y-4 xl:h-full xl:min-h-0 xl:overflow-y-auto xl:pr-1"
+        >
           <GlassCard className="p-4">
             <SectionLabel>Identity</SectionLabel>
-            <div className="mt-4 flex h-12 w-12 items-center justify-center rounded-2xl bg-white/10 text-lg font-semibold text-white">{currentUser.hiddenAvatar ? "◌" : currentUser.avatar}</div>
-            <p className="mt-3 font-medium text-white">{displayIdentity(currentUser)}</p>
-            <p className="text-sm text-white/55">{currentUser.bio}</p>
-            <StatusPill tone="mint" className="mt-3">{currentUser.ghostMode ? "Ghost mode" : "Visible profile"}</StatusPill>
-            <button type="button" onClick={() => void signOut({ callbackUrl: "/chat" })} className="mt-3 rounded-full border border-white/10 px-3 py-2 text-xs text-white/60">Sign out</button>
+            <div className="mt-4 flex flex-col items-start gap-4">
+              <div className="synq-sigil flex h-14 w-14 items-center justify-center rounded-[20px] border border-white/10 text-lg font-semibold text-white">
+                {currentUser.hiddenAvatar ? "--" : currentUser.avatar}
+              </div>
+              <div>
+                <div className="flex flex-wrap items-center gap-2">
+                  <p className="font-medium text-white">{displayIdentity(currentUser)}</p>
+                  {currentUser.ghostMode ? (
+                    <StatusPill tone="mint" className="text-[10px] tracking-[0.16em]">
+                      STEALTH
+                    </StatusPill>
+                  ) : null}
+                </div>
+                <p className="mt-1 text-sm leading-6 text-white/55">
+                  {currentUser.bio || "Quiet by default. Ready for private signals."}
+                </p>
+              </div>
+            </div>
+            <div className="mt-4 grid gap-2 rounded-[24px] border border-white/8 bg-white/[0.03] p-3 text-xs text-white/58">
+              <div className="flex items-center justify-between">
+                <span>Unread</span>
+                <span>{totalUnreadCount}</span>
+              </div>
+              <div className="flex items-center justify-between">
+                <span>Connection</span>
+                <span>{connectionLabel}</span>
+              </div>
+              <div className="flex items-center justify-between">
+                <span>Queued</span>
+                <span>{queueCount}</span>
+              </div>
+            </div>
+            <button
+              type="button"
+              onClick={() => void signOut({ callbackUrl: "/chat" })}
+              className="mt-4 w-full rounded-full border border-white/10 px-3 py-2 text-xs text-white/60 transition hover:border-white/20 hover:text-white/82"
+            >
+              Sign out
+            </button>
           </GlassCard>
 
           <GlassCard className="p-4">
             <SectionLabel>Spaces</SectionLabel>
             <div className="mt-4 grid gap-3">
-              <button type="button" onClick={() => setSelectedWorkspaceId("direct")} className={`rounded-2xl border px-3 py-3 text-left ${selectedWorkspaceId === "direct" ? "border-[#5DE4FF]/40 bg-[#5DE4FF]/10" : "border-white/8 bg-white/[0.04]"}`}>
-                <p className="font-medium text-white">Direct signals</p>
+              <button
+                type="button"
+                onClick={() => setSelectedWorkspaceId("direct")}
+                className={cx(
+                  "rounded-[24px] border p-3 text-left transition",
+                  selectedWorkspaceId === "direct"
+                    ? "border-[#5DE4FF]/40 bg-[#5DE4FF]/10 shadow-[0_12px_36px_rgba(93,228,255,0.08)]"
+                    : "border-white/8 bg-white/[0.04] hover:border-white/14 hover:bg-white/[0.06]",
+                )}
+              >
+                <div className="flex items-center gap-3">
+                  <div className="synq-sigil flex h-11 w-11 items-center justify-center rounded-[18px] border border-white/10 text-sm font-semibold text-white">
+                    DM
+                  </div>
+                  <div>
+                    <p className="font-medium text-white">Direct signals</p>
+                    <p className="text-sm text-white/55">Private threads and ghost DMs</p>
+                  </div>
+                </div>
               </button>
               {state.workspaces.map((workspace) => (
-                <button key={workspace.id} type="button" onClick={() => setSelectedWorkspaceId(workspace.id)} className={`rounded-2xl border px-3 py-3 text-left ${selectedWorkspaceId === workspace.id ? "border-[#5DE4FF]/40 bg-[#5DE4FF]/10" : "border-white/8 bg-white/[0.04]"}`}>
-                  <p className="font-medium text-white">{workspace.name}</p>
-                  <p className="text-sm text-white/55">{workspace.ambientScene}</p>
+                <button
+                  key={workspace.id}
+                  type="button"
+                  onClick={() => setSelectedWorkspaceId(workspace.id)}
+                  className={cx(
+                    "rounded-[24px] border p-3 text-left transition",
+                    selectedWorkspaceId === workspace.id
+                      ? "border-[#5DE4FF]/40 bg-[#5DE4FF]/10 shadow-[0_12px_36px_rgba(93,228,255,0.08)]"
+                      : "border-white/8 bg-white/[0.04] hover:border-white/14 hover:bg-white/[0.06]",
+                  )}
+                >
+                  <div className="flex items-center gap-3">
+                    <div className="synq-sigil flex h-11 w-11 items-center justify-center rounded-[18px] border border-white/10 text-sm font-semibold text-white">
+                      {workspaceGlyph(workspace.name)}
+                    </div>
+                    <div>
+                      <p className="font-medium text-white">{workspace.name}</p>
+                      <p className="text-sm text-white/55">{workspace.ambientScene}</p>
+                    </div>
+                  </div>
                 </button>
               ))}
             </div>
           </GlassCard>
         </motion.aside>
 
-        <GlassCard className="p-4">
-          <div className="flex items-center justify-between">
+        <GlassCard className="flex min-h-0 flex-col p-4 xl:h-full">
+          <div className="flex items-center justify-between gap-3">
             <SectionLabel>Signal inbox</SectionLabel>
-            <StatusPill>{connectionLabel}</StatusPill>
+            <div className="flex items-center gap-2">
+              {totalUnreadCount ? <StatusPill tone="coral">{totalUnreadCount} unread</StatusPill> : null}
+              <StatusPill>{connectionLabel}</StatusPill>
+            </div>
           </div>
-          <div className="mt-4 grid gap-2 rounded-[24px] border border-white/8 bg-white/[0.03] p-3">
-            <input value={roomTitle} onChange={(event) => setRoomTitle(event.target.value)} placeholder="New room title" className="rounded-2xl border border-white/10 bg-white/[0.04] px-3 py-2 text-sm text-white outline-none" />
-            <input value={roomSubtitle} onChange={(event) => setRoomSubtitle(event.target.value)} placeholder="Room subtitle" className="rounded-2xl border border-white/10 bg-white/[0.04] px-3 py-2 text-sm text-white outline-none" />
-            <input value={roomHandles} onChange={(event) => setRoomHandles(event.target.value)} placeholder="Invite handles, comma separated" className="rounded-2xl border border-white/10 bg-white/[0.04] px-3 py-2 text-sm text-white outline-none" />
-            <button type="button" onClick={() => void handleCreateRoom()} className="rounded-full border border-[#5DE4FF]/30 bg-[#5DE4FF]/10 px-3 py-2 text-sm text-white">Create room</button>
+          <div className="mt-4 rounded-[26px] border border-white/8 bg-white/[0.03] p-3">
+            <div className="grid gap-2">
+              <input
+                value={roomTitle}
+                onChange={(event) => setRoomTitle(event.target.value)}
+                placeholder="New room title"
+                className="rounded-[18px] border border-white/10 bg-white/[0.04] px-3 py-2 text-sm text-white outline-none"
+              />
+              <input
+                value={roomSubtitle}
+                onChange={(event) => setRoomSubtitle(event.target.value)}
+                placeholder="Room subtitle"
+                className="rounded-[18px] border border-white/10 bg-white/[0.04] px-3 py-2 text-sm text-white outline-none"
+              />
+              <input
+                value={roomHandles}
+                onChange={(event) => setRoomHandles(event.target.value)}
+                placeholder="Invite handles, comma separated"
+                className="rounded-[18px] border border-white/10 bg-white/[0.04] px-3 py-2 text-sm text-white outline-none"
+              />
+              <button
+                type="button"
+                onClick={() => void handleCreateRoom()}
+                className="rounded-full border border-[#5DE4FF]/30 bg-[#5DE4FF]/10 px-3 py-2 text-sm text-white transition hover:border-[#5DE4FF]/45 hover:bg-[#5DE4FF]/14"
+              >
+                Create room
+              </button>
+            </div>
           </div>
-          <div className="mt-3 grid gap-2 rounded-[24px] border border-white/8 bg-white/[0.03] p-3">
-            <input value={joinCode} onChange={(event) => setJoinCode(event.target.value)} placeholder="Join code" className="rounded-2xl border border-white/10 bg-white/[0.04] px-3 py-2 text-sm text-white outline-none" />
-            <button type="button" onClick={() => void handleJoinRoom()} className="rounded-full border border-white/10 px-3 py-2 text-sm text-white/70">Join by code</button>
+          <div className="mt-3 rounded-[26px] border border-white/8 bg-white/[0.03] p-3">
+            <div className="grid gap-2">
+              <input
+                value={joinCode}
+                onChange={(event) => setJoinCode(event.target.value)}
+                placeholder="Join code"
+                className="rounded-[18px] border border-white/10 bg-white/[0.04] px-3 py-2 text-sm text-white outline-none"
+              />
+              <button
+                type="button"
+                onClick={() => void handleJoinRoom()}
+                className="rounded-full border border-white/10 px-3 py-2 text-sm text-white/70 transition hover:border-white/18 hover:text-white/88"
+              >
+                Join by code
+              </button>
+            </div>
           </div>
-          <div className="mt-4 space-y-3">
-            {visibleConversations.length ? visibleConversations.map((conversation) => (
-              <motion.button key={conversation.id} type="button" layout transition={reduceMotion ? undefined : motionTokens.spring} onClick={() => setSelectedConversationId(conversation.id)} className={`w-full rounded-[24px] border px-4 py-4 text-left ${conversation.id === selectedConversation?.id ? "border-[#5DE4FF]/40 bg-[#5DE4FF]/10" : "border-white/8 bg-white/[0.04]"}`}>
-                <div className="flex items-start justify-between gap-3">
-                  <div>
-                    <p className="font-medium text-white">{conversation.title}</p>
-                    <p className="text-sm text-white/55">{conversation.subtitle}</p>
+          <div className="synq-scroll mt-4 min-h-0 flex-1 space-y-3 overflow-y-auto pr-1">
+            {visibleConversations.length ? (
+              visibleConversations.map((conversation) => (
+                <motion.button
+                  key={conversation.id}
+                  type="button"
+                  layout
+                  transition={reduceMotion ? undefined : motionTokens.spring}
+                  onClick={() => setSelectedConversationId(conversation.id)}
+                  className={cx(
+                    "w-full rounded-[26px] border p-4 text-left transition",
+                    conversation.id === selectedConversation?.id
+                      ? "border-[#5DE4FF]/40 bg-[linear-gradient(135deg,rgba(93,228,255,0.14),rgba(255,122,110,0.08))] shadow-[0_18px_44px_rgba(7,16,26,0.28)]"
+                      : "border-white/8 bg-white/[0.04] hover:border-white/14 hover:bg-white/[0.06]",
+                  )}
+                >
+                  <div className="flex items-start gap-3">
+                    <div className="synq-sigil flex h-12 w-12 shrink-0 items-center justify-center rounded-[18px] border border-white/10 text-sm font-semibold text-white">
+                      {roomGlyph(conversation)}
+                    </div>
+                    <div className="min-w-0 flex-1">
+                      <div className="flex items-start justify-between gap-3">
+                        <div className="min-w-0">
+                          <p className="truncate font-medium text-white">{conversation.title}</p>
+                          <p className="truncate text-sm text-white/55">{conversation.subtitle}</p>
+                        </div>
+                        <div className="flex shrink-0 items-center gap-2">
+                          {conversation.unreadCount ? (
+                            <span className="rounded-full bg-[#FF7A6E] px-2 py-1 text-[11px] font-semibold text-[#071019]">
+                              {conversation.unreadCount}
+                            </span>
+                          ) : null}
+                          <StatusPill
+                            tone={
+                              conversation.visibility === "e2ee"
+                                ? "mint"
+                                : conversation.kind === "creator_channel"
+                                  ? "coral"
+                                  : "cyan"
+                            }
+                          >
+                            {toneLabel(conversation)}
+                          </StatusPill>
+                        </div>
+                      </div>
+                      <p className="mt-3 line-clamp-2 text-sm leading-6 text-white/55">
+                        {conversation.lastMessagePreview}
+                      </p>
+                      <div className="mt-3 flex items-center justify-between text-xs text-white/40">
+                        <span>{conversation.kind.replaceAll("_", " ")}</span>
+                        <span>{formatClock(conversation.lastActivityAt)}</span>
+                      </div>
+                    </div>
                   </div>
-                  <div className="flex items-center gap-2">
-                    {conversation.unreadCount ? <span className="rounded-full bg-[#FF7A6E] px-2 py-1 text-[11px] font-semibold text-[#071019]">{conversation.unreadCount}</span> : null}
-                    <StatusPill tone={conversation.visibility === "e2ee" ? "mint" : conversation.kind === "creator_channel" ? "coral" : "cyan"}>{toneLabel(conversation)}</StatusPill>
-                  </div>
-                </div>
-                <p className="mt-3 text-sm text-white/55">{conversation.lastMessagePreview}</p>
-              </motion.button>
-            )) : (
-              <div className="rounded-[24px] border border-dashed border-white/10 bg-white/[0.03] px-4 py-6 text-sm text-white/55">No rooms yet. Create one or join with a code.</div>
+                </motion.button>
+              ))
+            ) : (
+              <div className="rounded-[26px] border border-dashed border-white/10 bg-white/[0.03] px-4 py-8 text-sm leading-6 text-white/55">
+                No rooms yet. Create one, share a join code, or open a direct signal with a handle.
+              </div>
             )}
           </div>
         </GlassCard>
 
-        <GlassCard className="overflow-hidden">
-          <div className="border-b border-white/8 px-5 py-4">
-            <div className="flex flex-wrap items-center justify-between gap-3">
-              <div>
-                <SectionLabel>Conversation</SectionLabel>
-                <h2 className="mt-2 text-2xl font-semibold text-white">{selectedConversation?.title}</h2>
-                <p className="text-sm text-white/55">{selectedConversation?.subtitle}</p>
+        <GlassCard
+          className={cx(
+            "relative flex min-h-[760px] flex-col overflow-hidden xl:h-full xl:min-h-0",
+            conversationAmbientClass(selectedConversation),
+          )}
+        >
+          <div className="pointer-events-none absolute inset-x-8 top-0 h-40 rounded-full bg-[radial-gradient(circle,_rgba(255,255,255,0.08),_transparent_70%)] blur-3xl" />
+          <div className="shrink-0 border-b border-white/8 bg-[#08111c]/82 px-5 py-4 backdrop-blur-xl">
+            <div className="flex flex-wrap items-start justify-between gap-4">
+              <div className="flex min-w-0 items-start gap-4">
+                <div className="synq-sigil mt-1 flex h-14 w-14 shrink-0 items-center justify-center rounded-[20px] border border-white/10 text-sm font-semibold text-white">
+                  {roomGlyph(selectedConversation)}
+                </div>
+                <div className="min-w-0">
+                  <SectionLabel>Conversation</SectionLabel>
+                  <h2 className="mt-2 truncate text-2xl font-semibold text-white">
+                    {selectedConversation?.title || "Pick a room"}
+                  </h2>
+                  <div className="mt-2 flex flex-wrap items-center gap-2 text-sm text-white/55">
+                    <span>{selectedConversation?.subtitle || "Select a room from the inbox to continue."}</span>
+                    {selectedConversation?.joinCode ? (
+                      <span className="rounded-full border border-white/10 px-3 py-1 text-[11px] tracking-[0.16em] text-white/56">
+                        CODE {selectedConversation.joinCode}
+                      </span>
+                    ) : null}
+                  </div>
+                </div>
               </div>
               <div className="flex flex-wrap items-center justify-end gap-2">
-                {selectedConversation?.joinCode ? <StatusPill tone="cyan">Join code {selectedConversation.joinCode}</StatusPill> : null}
-                <StatusPill tone="mint">{selectedConversation?.visibility === "e2ee" ? "E2EE sealed" : "Shared room"}</StatusPill>
-                <StatusPill tone="coral">{queueCount} queued</StatusPill>
+                <StatusPill tone={selectedConversation?.visibility === "e2ee" ? "mint" : "cyan"}>
+                  {selectedConversation?.visibility === "e2ee" ? "sealed room" : "shared room"}
+                </StatusPill>
+                {queueCount ? <StatusPill tone="coral">{queueCount} queued</StatusPill> : null}
+                {typingUsers.length ? <StatusPill tone="mint">live typing</StatusPill> : null}
                 <div className="relative" ref={utilitiesRef}>
                   <button
                     type="button"
@@ -1058,9 +1591,9 @@ export function ChatExperience() {
                     aria-expanded={isUtilitiesOpen}
                     aria-haspopup="menu"
                     onClick={() => setIsUtilitiesOpen((current) => !current)}
-                    className="rounded-full border border-white/10 bg-white/[0.04] px-3 py-2 text-sm text-white/75"
+                    className="rounded-full border border-white/10 bg-white/[0.05] px-4 py-2 text-sm text-white/78 transition hover:border-white/18 hover:bg-white/[0.08]"
                   >
-                    Utilities
+                    Tools
                   </button>
                   <AnimatePresence initial={false}>
                     {isUtilitiesOpen ? (
@@ -1070,7 +1603,7 @@ export function ChatExperience() {
                         exit={reduceMotion ? undefined : { opacity: 0, y: -6 }}
                         transition={reduceMotion ? undefined : motionTokens.spring}
                         role="menu"
-                        className="absolute right-0 top-[calc(100%+0.6rem)] z-20 min-w-[210px] rounded-[22px] border border-white/10 bg-[#09111C]/95 p-2 shadow-[0_20px_60px_rgba(0,0,0,0.45)] backdrop-blur-xl"
+                        className="absolute right-0 top-[calc(100%+0.6rem)] z-20 min-w-[220px] rounded-[22px] border border-white/10 bg-[#09111C]/95 p-2 shadow-[0_20px_60px_rgba(0,0,0,0.45)] backdrop-blur-xl"
                       >
                         <button
                           type="button"
@@ -1103,7 +1636,7 @@ export function ChatExperience() {
                   transition={reduceMotion ? undefined : motionTokens.spring}
                   className="overflow-hidden"
                 >
-                  <div className="mt-4 rounded-[24px] border border-white/8 bg-white/[0.03] p-3">
+                  <div className="mt-4 rounded-[24px] border border-white/8 bg-white/[0.04] p-3">
                     <div className="grid gap-3 md:grid-cols-[minmax(0,1fr)_auto] md:items-center">
                       <input
                         ref={searchInputRef}
@@ -1115,7 +1648,7 @@ export function ChatExperience() {
                           }
                         }}
                         placeholder="Search this conversation"
-                        className="rounded-2xl border border-white/10 bg-white/[0.04] px-4 py-3 text-sm text-white outline-none"
+                        className="rounded-[20px] border border-white/10 bg-white/[0.04] px-4 py-3 text-sm text-white outline-none"
                       />
                       <div className="flex flex-wrap items-center gap-2">
                         <span className="rounded-full border border-white/10 px-3 py-2 text-xs text-white/55">
@@ -1126,14 +1659,14 @@ export function ChatExperience() {
                         <button
                           type="button"
                           onClick={() => setMessageSearch("")}
-                          className="rounded-full border border-white/10 px-3 py-2 text-xs text-white/60"
+                          className="rounded-full border border-white/10 px-3 py-2 text-xs text-white/60 transition hover:border-white/16 hover:text-white/88"
                         >
                           Clear
                         </button>
                         <button
                           type="button"
                           onClick={closeSearchPanel}
-                          className="rounded-full border border-white/10 px-3 py-2 text-xs text-white/60"
+                          className="rounded-full border border-white/10 px-3 py-2 text-xs text-white/60 transition hover:border-white/16 hover:text-white/88"
                         >
                           Close
                         </button>
@@ -1150,64 +1683,280 @@ export function ChatExperience() {
                     key={message.id}
                     type="button"
                     onClick={() => openSearchPanel(message.preview)}
-                    className="rounded-full border border-white/10 bg-white/[0.04] px-3 py-2 text-xs text-white/70"
+                    className="rounded-full border border-[#FFCF86]/20 bg-[linear-gradient(135deg,rgba(255,122,110,0.12),rgba(255,207,134,0.1))] px-4 py-2 text-xs text-white/76 transition hover:border-[#FFCF86]/34"
                   >
-                    Pinned: {message.preview.slice(0, 48)}
+                    Pin {message.preview.slice(0, 48)}
                   </button>
                 ))}
               </div>
             ) : null}
           </div>
-          <div className="space-y-3 px-5 py-5">
-            <AnimatePresence initial={false}>
-              {filteredMessages.length ? filteredMessages.map((message) => {
-                const mine = message.senderId === currentUser.id;
-                const author = displayIdentity(
-                  state.users.find((user) => user.id === message.senderId),
-                );
-                const replySource = resolvedMessages.find((candidate) => candidate.id === message.replyToId || candidate.clientId === message.replyToId);
-                const isPinned = pinnedMessages.some((pinned) => pinned.id === message.id);
-                return (
-                  <motion.div key={message.id} initial={reduceMotion ? false : { opacity: 0, y: 12 }} animate={{ opacity: 1, y: 0 }} exit={reduceMotion ? undefined : { opacity: 0, y: -8 }} transition={reduceMotion ? undefined : motionTokens.spring} className={`flex ${mine ? "justify-end" : "justify-start"}`}>
-                    <div className={`max-w-[82%] rounded-[24px] px-4 py-3 ${mine ? "bg-[linear-gradient(135deg,rgba(93,228,255,0.22),rgba(255,122,110,0.18))] text-white" : "border border-white/8 bg-white/[0.05] text-white/92"}`}>
-                      <div className="flex items-center justify-between gap-4 text-xs uppercase tracking-[0.18em] text-white/45"><span>{mine ? "You" : author}</span><span>{formatClock(message.createdAt)}</span></div>
-                      {replySource ? <div className="mt-3 rounded-[18px] border border-white/10 bg-black/20 px-3 py-2 text-sm text-white/55">Reply: {replySource.preview}</div> : null}
-                      <p className="mt-2 text-[0.98rem] leading-7">{message.preview}</p>
-                      {message.attachments.length ? <div className="mt-3 grid gap-2">{message.attachments.map((attachment) => <div key={attachment.id} className="rounded-[18px] border border-white/10 bg-black/20 px-3 py-3 text-sm text-white/70"><span className="font-medium text-[#B9F6FF]">{attachment.mimeType.startsWith("audio/") ? "Voice note" : attachment.mimeType.startsWith("image/") ? "Image" : "Attachment"}</span><p className="mt-1">{attachment.name}</p></div>)}</div> : null}
-                      {message.reactions.length ? <div className="mt-3 flex flex-wrap gap-2">{Object.entries(message.reactions.reduce<Record<string, number>>((accumulator, reaction) => { accumulator[reaction.emoji] = (accumulator[reaction.emoji] ?? 0) + 1; return accumulator; }, {})).map(([emoji, count]) => <span key={emoji} className="rounded-full border border-white/10 px-2 py-1 text-xs text-white/70">{emoji} {count}</span>)}</div> : null}
-                      <div className="mt-3 flex flex-wrap gap-2 text-xs text-white/45">
-                        {QUICK_REACTIONS.map((emoji) => <button key={emoji} type="button" onClick={() => void handleReaction(message.id, emoji)} className="rounded-full border border-white/10 px-2 py-1">{emoji}</button>)}
-                        <button type="button" onClick={() => setReplyToMessageId(message.id)} className="rounded-full border border-white/10 px-2 py-1">Reply</button>
-                        <button type="button" onClick={() => void handlePin(message.id, !isPinned)} className="rounded-full border border-white/10 px-2 py-1">{isPinned ? "Unpin" : "Pin"}</button>
-                        {mine || canModerate ? (
-                          <>
-                            {mine ? <button type="button" onClick={() => { setEditingMessageId(message.id); setDraft(message.preview); }} className="rounded-full border border-white/10 px-2 py-1">Edit</button> : null}
-                            <button type="button" onClick={() => void handleDeleteMessage(message.id)} className="rounded-full border border-white/10 px-2 py-1">Delete</button>
-                          </>
-                        ) : (
-                          <>
-                            <button type="button" onClick={() => void handleReport(message.id)} className="rounded-full border border-white/10 px-2 py-1">Report</button>
-                            <button type="button" onClick={() => void handleBlock(message.senderId)} className="rounded-full border border-white/10 px-2 py-1">Block</button>
-                          </>
+          <div className="relative min-h-0 flex-1 overflow-hidden">
+            <div
+              ref={messageListRef}
+              className="synq-scroll h-full min-h-[320px] space-y-1 overflow-y-auto overscroll-contain px-5 py-6 xl:min-h-0"
+            >
+              <AnimatePresence initial={false}>
+                {decoratedMessages.length ? (
+                  decoratedMessages.map(({ message, groupedWithPrevious, groupedWithNext }) => {
+                    const mine = message.senderId === currentUser.id;
+                    const authorUser = state.users.find((user) => user.id === message.senderId);
+                    const author = displayIdentity(authorUser);
+                    const replySource = resolvedMessages.find(
+                      (candidate) =>
+                        candidate.id === message.replyToId || candidate.clientId === message.replyToId,
+                    );
+                    const isPinned = pinnedMessages.some((pinned) => pinned.id === message.id);
+                    return (
+                      <motion.div
+                        key={message.id}
+                        initial={reduceMotion ? false : { opacity: 0, y: 12 }}
+                        animate={{ opacity: 1, y: 0 }}
+                        exit={reduceMotion ? undefined : { opacity: 0, y: -8 }}
+                        transition={reduceMotion ? undefined : motionTokens.spring}
+                        className={cx(
+                          "flex",
+                          mine ? "justify-end" : "justify-start",
+                          groupedWithPrevious ? "mt-1" : "mt-6",
                         )}
-                      </div>
-                      <p className="mt-2 text-xs text-white/45">{message.deletedAt ? "Deleted" : message.editedAt ? "Edited" : message.status === "queued" ? "Queued for replay" : selectedConversation?.visibility === "e2ee" ? "Local vault render" : "Managed visible"}</p>
-                    </div>
-                  </motion.div>
-                );
-              }) : (
-                <div className="rounded-[24px] border border-dashed border-white/10 bg-white/[0.03] px-4 py-8 text-center text-sm text-white/55">{messageSearch ? "No messages matched that search." : "This room is quiet. Send the first signal."}</div>
-              )}
+                      >
+                        <div className={cx("max-w-[88%]", mine ? "items-end" : "items-start")}>
+                          {!groupedWithPrevious ? (
+                            <div
+                              className={cx(
+                                "mb-2 flex items-center gap-3 text-sm text-white/48",
+                                mine ? "justify-end" : "justify-start",
+                              )}
+                            >
+                              {!mine ? (
+                                <div className="synq-sigil flex h-9 w-9 items-center justify-center rounded-[16px] border border-white/10 text-xs font-semibold text-white">
+                                  {displayAvatar(authorUser)}
+                                </div>
+                              ) : null}
+                              <div className={cx("flex items-center gap-2", mine ? "flex-row-reverse" : "")}>
+                                <span className="font-medium text-white/76">{mine ? "You" : author}</span>
+                                <span className="text-xs tracking-[0.14em] text-white/34">
+                                  {formatClock(message.createdAt)}
+                                </span>
+                              </div>
+                            </div>
+                          ) : null}
+                          <div
+                            className={cx(
+                              "relative overflow-hidden border px-4 py-3 text-white shadow-[0_20px_60px_rgba(5,10,18,0.24)]",
+                              mine
+                                ? "border-[#5DE4FF]/18 bg-[linear-gradient(135deg,rgba(93,228,255,0.18),rgba(255,122,110,0.14))]"
+                                : "border-white/8 bg-white/[0.05]",
+                              groupedWithPrevious && mine && "rounded-tr-[16px]",
+                              groupedWithPrevious && !mine && "rounded-tl-[16px]",
+                              groupedWithNext && mine && "rounded-br-[16px]",
+                              groupedWithNext && !mine && "rounded-bl-[16px]",
+                              "rounded-[28px]",
+                            )}
+                          >
+                            <div
+                              className={cx(
+                                "absolute inset-y-0 w-[2px] rounded-full",
+                                mine ? "right-0 bg-[#FFB39D]/35" : "left-0 bg-[#5DE4FF]/35",
+                              )}
+                            />
+                            {replySource ? (
+                              <div className="mt-1 flex gap-3 rounded-[20px] border border-white/10 bg-black/20 px-3 py-3">
+                                <div className="w-1 rounded-full bg-[#5DE4FF]/70" />
+                                <div className="min-w-0">
+                                  <p className="text-[11px] tracking-[0.18em] text-white/40">
+                                    REPLYING TO {displayIdentity(
+                                      state.users.find((user) => user.id === replySource.senderId),
+                                    )}
+                                  </p>
+                                  <p className="mt-1 line-clamp-2 text-sm leading-6 text-white/62">
+                                    {replySource.preview}
+                                  </p>
+                                </div>
+                              </div>
+                            ) : null}
+                            <p className="mt-2 text-[1rem] leading-8 text-white/92">{message.preview}</p>
+                            {message.attachments.length ? (
+                              <div className="mt-4 grid gap-3">
+                                {message.attachments.map((attachment) => {
+                                  const kind = attachmentKind(attachment);
+                                  return (
+                                    <div
+                                      key={attachment.id}
+                                      className="overflow-hidden rounded-[22px] border border-white/10 bg-black/18"
+                                    >
+                                      {kind === "image" ? (
+                                        <div className="h-28 bg-[linear-gradient(135deg,rgba(93,228,255,0.18),rgba(255,122,110,0.12))] p-4">
+                                          <div className="h-full rounded-[18px] border border-white/12 bg-[radial-gradient(circle_at_20%_20%,rgba(255,255,255,0.18),transparent_30%),linear-gradient(135deg,rgba(255,255,255,0.08),transparent)]" />
+                                        </div>
+                                      ) : kind === "voice" ? (
+                                        <div className="flex items-end gap-1 px-4 pt-5">
+                                          {[16, 24, 12, 28, 18, 30, 14, 20, 26, 14].map((height, index) => (
+                                            <span
+                                              key={`${attachment.id}_${height}_${index}`}
+                                              className="w-1 rounded-full bg-[#5DE4FF]/62"
+                                              style={{ height }}
+                                            />
+                                          ))}
+                                        </div>
+                                      ) : null}
+                                      <div className="flex items-center justify-between gap-3 px-4 py-3">
+                                        <div className="min-w-0">
+                                          <p className="truncate text-sm font-medium text-white">
+                                            {attachment.name}
+                                          </p>
+                                          <p className="mt-1 text-xs tracking-[0.18em] text-white/42">
+                                            {kind === "voice"
+                                              ? "VOICE NOTE"
+                                              : kind === "image"
+                                                ? "IMAGE"
+                                                : "FILE"}{" "}
+                                            {formatAttachmentSize(attachment.size)}
+                                          </p>
+                                        </div>
+                                        <span className="rounded-full border border-white/10 px-3 py-1 text-[11px] text-white/56">
+                                          {kind === "file"
+                                            ? (attachment.name.split(".").pop() ?? "FILE").toUpperCase()
+                                            : kind.toUpperCase()}
+                                        </span>
+                                      </div>
+                                    </div>
+                                  );
+                                })}
+                              </div>
+                            ) : null}
+                            {message.reactions.length ? (
+                              <div className="mt-4 flex flex-wrap gap-2">
+                                {Object.entries(
+                                  message.reactions.reduce<Record<string, number>>((accumulator, reaction) => {
+                                    accumulator[reaction.emoji] = (accumulator[reaction.emoji] ?? 0) + 1;
+                                    return accumulator;
+                                  }, {}),
+                                ).map(([emoji, count]) => (
+                                  <span
+                                    key={emoji}
+                                    className="rounded-full border border-white/10 bg-white/[0.04] px-3 py-1 text-xs text-white/74"
+                                  >
+                                    {emoji} {count}
+                                  </span>
+                                ))}
+                              </div>
+                            ) : null}
+                            <div className="mt-4 flex flex-wrap gap-2 text-xs text-white/54">
+                              {QUICK_REACTIONS.map((emoji) => (
+                                <button
+                                  key={emoji}
+                                  type="button"
+                                  onClick={() => void handleReaction(message.id, emoji)}
+                                  className="rounded-full border border-white/10 px-3 py-1.5 transition hover:border-white/18 hover:text-white"
+                                >
+                                  {emoji}
+                                </button>
+                              ))}
+                              <button
+                                type="button"
+                                onClick={() => setReplyToMessageId(message.id)}
+                                className="rounded-full border border-white/10 px-3 py-1.5 transition hover:border-white/18 hover:text-white"
+                              >
+                                Reply
+                              </button>
+                              <button
+                                type="button"
+                                onClick={() => void handlePin(message.id, !isPinned)}
+                                className="rounded-full border border-white/10 px-3 py-1.5 transition hover:border-white/18 hover:text-white"
+                              >
+                                {isPinned ? "Unpin" : "Pin"}
+                              </button>
+                              {mine || canModerate ? (
+                                <>
+                                  {mine ? (
+                                    <button
+                                      type="button"
+                                      onClick={() => {
+                                        setEditingMessageId(message.id);
+                                        setDraft(message.preview);
+                                      }}
+                                      className="rounded-full border border-white/10 px-3 py-1.5 transition hover:border-white/18 hover:text-white"
+                                    >
+                                      Edit
+                                    </button>
+                                  ) : null}
+                                  <button
+                                    type="button"
+                                    onClick={() => void handleDeleteMessage(message.id)}
+                                    className="rounded-full border border-white/10 px-3 py-1.5 transition hover:border-white/18 hover:text-white"
+                                  >
+                                    Delete
+                                  </button>
+                                </>
+                              ) : (
+                                <>
+                                  <button
+                                    type="button"
+                                    onClick={() => void handleReport(message.id)}
+                                    className="rounded-full border border-white/10 px-3 py-1.5 transition hover:border-white/18 hover:text-white"
+                                  >
+                                    Report
+                                  </button>
+                                  <button
+                                    type="button"
+                                    onClick={() => void handleBlock(message.senderId)}
+                                    className="rounded-full border border-white/10 px-3 py-1.5 transition hover:border-white/18 hover:text-white"
+                                  >
+                                    Block
+                                  </button>
+                                </>
+                              )}
+                            </div>
+                            <p className="mt-3 text-xs tracking-[0.16em] text-white/38">
+                              {message.deletedAt
+                                ? "DELETED"
+                                : message.editedAt
+                                  ? "EDITED"
+                                  : message.status === "queued"
+                                    ? "QUEUED FOR REPLAY"
+                                    : selectedConversation?.visibility === "e2ee"
+                                      ? "LOCAL VAULT RENDER"
+                                      : "MANAGED VISIBLE"}
+                            </p>
+                          </div>
+                        </div>
+                      </motion.div>
+                    );
+                  })
+                ) : (
+                  <div className="rounded-[26px] border border-dashed border-white/10 bg-white/[0.03] px-4 py-10 text-center text-sm leading-6 text-white/55">
+                    {messageSearch
+                      ? "No messages matched that search."
+                      : "This room is calm right now. Send the first signal or share a join code with your friends."}
+                  </div>
+                )}
+              </AnimatePresence>
+            </div>
+            <AnimatePresence>
+              {showJumpToLatest ? (
+                <motion.button
+                  type="button"
+                  initial={reduceMotion ? false : { opacity: 0, y: 16 }}
+                  animate={{ opacity: 1, y: 0 }}
+                  exit={reduceMotion ? undefined : { opacity: 0, y: 12 }}
+                  transition={reduceMotion ? undefined : motionTokens.spring}
+                  onClick={() => scrollConversationToLatest()}
+                  className="absolute bottom-4 left-1/2 -translate-x-1/2 rounded-full border border-white/10 bg-[#09111C]/92 px-4 py-2 text-sm text-white/78 shadow-[0_18px_44px_rgba(0,0,0,0.32)]"
+                >
+                  Jump to latest
+                </motion.button>
+              ) : null}
             </AnimatePresence>
           </div>
-          <div className="border-t border-white/8 px-5 py-4">
+          <div className="border-t border-white/8 bg-black/10 px-5 py-4">
             {typingUsers.length ? (
               <div className="mb-3 rounded-[18px] border border-[#5DE4FF]/20 bg-[#5DE4FF]/8 px-3 py-2 text-sm text-[#D8FBFF]">
                 {typingUsers.map((user) => displayIdentity(user)).join(", ")} typing...
               </div>
             ) : null}
             {replyTarget || editingMessageId ? (
-              <div className="mb-3 flex flex-wrap items-center justify-between gap-3 rounded-[18px] border border-white/8 bg-white/[0.03] px-3 py-2 text-sm text-white/70">
+              <div className="mb-3 flex flex-wrap items-center justify-between gap-3 rounded-[20px] border border-white/8 bg-white/[0.03] px-4 py-3 text-sm text-white/70">
                 <div>
                   {editingMessageId
                     ? "Editing your message"
@@ -1222,23 +1971,28 @@ export function ChatExperience() {
                     setEditingMessageId("");
                     setDraft("");
                   }}
-                  className="rounded-full border border-white/10 px-3 py-1 text-xs text-white/60"
+                  className="rounded-full border border-white/10 px-3 py-1 text-xs text-white/60 transition hover:border-white/18 hover:text-white/88"
                 >
                   Clear
                 </button>
               </div>
             ) : null}
             {pendingAttachments.length ? (
-              <div className="mb-3 flex flex-wrap gap-2">
-                {pendingAttachments.map((attachment) => (
-                  <div
-                    key={attachment.id}
-                    className="rounded-full border border-white/10 bg-white/[0.04] px-3 py-2 text-xs text-white/70"
-                  >
-                    {attachment.mimeType.startsWith("audio/") ? "Voice" : attachment.mimeType.startsWith("image/") ? "Image" : "File"}:{" "}
-                    {attachment.name}
-                  </div>
-                ))}
+              <div className="mb-3 grid gap-2 sm:grid-cols-2">
+                {pendingAttachments.map((attachment) => {
+                  const kind = attachmentKind(attachment);
+                  return (
+                    <div
+                      key={attachment.id}
+                      className="rounded-[20px] border border-white/10 bg-white/[0.04] px-4 py-3 text-sm text-white/76"
+                    >
+                      <p className="font-medium text-white">{attachment.name}</p>
+                      <p className="mt-1 text-xs tracking-[0.16em] text-white/42">
+                        {kind.toUpperCase()} {formatAttachmentSize(attachment.size)}
+                      </p>
+                    </div>
+                  );
+                })}
               </div>
             ) : null}
             <textarea
@@ -1251,7 +2005,7 @@ export function ChatExperience() {
                   : "Pick a room to start chatting."
               }
               disabled={!selectedConversation}
-              className="w-full rounded-[28px] border border-white/10 bg-white/[0.04] px-4 py-4 text-sm leading-7 text-white outline-none placeholder:text-white/35"
+              className="w-full rounded-[28px] border border-white/10 bg-white/[0.04] px-4 py-4 text-sm leading-8 text-white outline-none placeholder:text-white/35"
             />
             {composerError ? (
               <div className="mt-3 rounded-[18px] border border-[#FF7A6E]/25 bg-[#FF7A6E]/10 px-3 py-2 text-sm text-[#FFD1CB]">
@@ -1260,7 +2014,7 @@ export function ChatExperience() {
             ) : null}
             <div className="mt-4 flex flex-wrap items-center justify-between gap-3">
               <div className="flex flex-wrap items-center gap-2">
-                <label className="cursor-pointer rounded-full border border-white/10 px-3 py-2 text-xs text-white/70">
+                <label className="cursor-pointer rounded-full border border-white/10 px-4 py-2.5 text-xs text-white/74 transition hover:border-white/18 hover:text-white">
                   Attach
                   <input
                     type="file"
@@ -1277,10 +2031,10 @@ export function ChatExperience() {
                 <button
                   type="button"
                   onClick={() => void handleVoiceNote()}
-                  className={`rounded-full border px-3 py-2 text-xs ${
+                  className={`rounded-full border px-4 py-2.5 text-xs transition ${
                     recordingVoice
                       ? "border-[#FF7A6E]/40 bg-[#FF7A6E]/12 text-[#FFD1CB]"
-                      : "border-white/10 text-white/70"
+                      : "border-white/10 text-white/74 hover:border-white/18 hover:text-white"
                   }`}
                 >
                   {recordingVoice ? "Stop voice" : "Voice note"}
@@ -1291,7 +2045,7 @@ export function ChatExperience() {
                     setDraft(ghostRewrite);
                     pushToast("info", "Ghost rewrite applied locally.");
                   }}
-                  className="rounded-full border border-white/10 px-3 py-2 text-xs text-white/70"
+                  className="rounded-full border border-white/10 px-4 py-2.5 text-xs text-white/74 transition hover:border-white/18 hover:text-white"
                 >
                   Ghost rewrite
                 </button>
@@ -1316,7 +2070,98 @@ export function ChatExperience() {
           </div>
         </GlassCard>
 
-        <div className="space-y-4">
+        <GlassCard className="flex min-h-0 flex-col overflow-hidden p-4 xl:h-full">
+          <SectionLabel>Dock</SectionLabel>
+          <div className="mt-4">
+            <TrustOrb
+              ghostMode={currentUser.ghostMode}
+              queuedCount={queueCount}
+              typing={Boolean(typingUsers.length) || recordingVoice}
+              unreadCount={selectedConversation?.unreadCount ?? totalUnreadCount}
+              tone={conversationTone(selectedConversation)}
+            />
+          </div>
+          <div className="mt-4 grid grid-cols-2 gap-2">
+            {DOCK_TABS.map((tab) => (
+              <button
+                key={tab.id}
+                type="button"
+                data-active={activeDockTab === tab.id}
+                onClick={() => setActiveDockTab(tab.id)}
+                className="synq-tab rounded-[18px] px-3 py-3 text-left"
+              >
+                <p className="text-sm font-medium">{tab.label}</p>
+                <p className="mt-1 text-[11px] leading-5 text-current/70">{tab.caption}</p>
+              </button>
+            ))}
+          </div>
+          <div className="synq-scroll mt-4 min-h-0 flex-1 space-y-4 overflow-y-auto pr-1">
+            {activeDockTab === "memory" ? (
+              <GlassCard className="p-4">
+                <div className="flex items-center justify-between">
+                  <SectionLabel>Memory</SectionLabel>
+                  <StatusPill tone="mint">
+                    {selectedConversation?.visibility === "e2ee" ? "Local" : "Shared"}
+                  </StatusPill>
+                </div>
+                <div className="mt-4 grid gap-3">
+                  <div className="rounded-[20px] border border-white/8 bg-white/[0.03] p-3">
+                    <p className="text-xs uppercase tracking-[0.16em] text-white/40">Summary</p>
+                    <p className="mt-2 text-sm leading-6 text-white/75">{localSummary}</p>
+                  </div>
+                  <div className="rounded-[20px] border border-white/8 bg-white/[0.03] p-3">
+                    <p className="text-xs uppercase tracking-[0.16em] text-white/40">Relationship memory</p>
+                    <p className="mt-2 text-sm leading-6 text-white/75">{relationshipMemory}</p>
+                  </div>
+                  <div className="rounded-[20px] border border-white/8 bg-white/[0.03] p-3">
+                    <p className="text-xs uppercase tracking-[0.16em] text-white/40">Pinned signals</p>
+                    <div className="mt-2 grid gap-2">
+                      {pinnedMessages.length ? (
+                        pinnedMessages.slice(0, 4).map((message) => (
+                          <button
+                            key={message.id}
+                            type="button"
+                            onClick={() => openSearchPanel(message.preview)}
+                            className="rounded-[16px] border border-white/10 bg-black/20 px-3 py-3 text-left text-sm text-white/72 transition hover:border-white/18"
+                          >
+                            {message.preview}
+                          </button>
+                        ))
+                      ) : (
+                        <p className="text-sm text-white/55">
+                          Pin a message to keep important context floating here.
+                        </p>
+                      )}
+                    </div>
+                  </div>
+                </div>
+              </GlassCard>
+            ) : null}
+            {activeDockTab === "profile" ? (
+              <>
+          <GlassCard className="p-4">
+            <div className="flex items-start gap-4">
+              <div className="synq-sigil flex h-16 w-16 items-center justify-center rounded-[22px] border border-white/10 text-lg font-semibold text-white">
+                {ghostPreviewAvatar}
+              </div>
+              <div className="min-w-0">
+                <div className="flex flex-wrap items-center gap-2">
+                  <p className="truncate text-lg font-semibold text-white">{ghostPreviewIdentity}</p>
+                  {profileDraft.ghostMode ? (
+                    <StatusPill tone="mint" className="text-[10px] tracking-[0.16em]">
+                      GHOST
+                    </StatusPill>
+                  ) : null}
+                </div>
+                <p className="mt-2 text-sm leading-6 text-white/58">
+                  {profileDraft.privateDiscovery
+                    ? "Private discovery is on. Exact handles work best."
+                    : profileDraft.bio || "Tune your presence before you invite friends in."}
+                </p>
+              </div>
+            </div>
+          </GlassCard>
+
           <GlassCard className="p-4">
             <div className="flex items-center justify-between">
               <SectionLabel>Find people</SectionLabel>
@@ -1470,8 +2315,11 @@ export function ChatExperience() {
               Save profile
             </button>
           </GlassCard>
+              </>
+            ) : null}
 
-          <GlassCard className="p-4">
+            {activeDockTab === "ai" ? (
+              <GlassCard className="p-4">
             <div className="flex items-center justify-between">
               <SectionLabel>AI and memory</SectionLabel>
               <StatusPill tone="coral">
@@ -1484,10 +2332,6 @@ export function ChatExperience() {
                 <p className="mt-2 text-sm leading-6 text-white/75">{localSummary}</p>
               </div>
               <div className="rounded-[20px] border border-white/8 bg-white/[0.03] p-3">
-                <p className="text-xs uppercase tracking-[0.16em] text-white/40">Relationship memory</p>
-                <p className="mt-2 text-sm leading-6 text-white/75">{relationshipMemory}</p>
-              </div>
-              <div className="rounded-[20px] border border-white/8 bg-white/[0.03] p-3">
                 <p className="text-xs uppercase tracking-[0.16em] text-white/40">Ghost rewrite preview</p>
                 <p className="mt-2 text-sm leading-6 text-white/75">
                   {ghostRewrite || "Start typing to generate a softer, more cinematic rewrite."}
@@ -1498,10 +2342,20 @@ export function ChatExperience() {
                 <p className="mt-2 text-sm leading-6 text-white/75">
                   {cloudResult || "Run the AI dock to generate shared memory cards or local summaries."}
                 </p>
+                <button
+                  type="button"
+                  onClick={() => void handleWorkspaceAI()}
+                  className="mt-4 rounded-full border border-[#5DE4FF]/30 bg-[#5DE4FF]/10 px-4 py-2 text-sm text-white transition hover:border-[#5DE4FF]/42 hover:bg-[#5DE4FF]/14"
+                >
+                  Refresh AI dock
+                </button>
               </div>
             </div>
-          </GlassCard>
+              </GlassCard>
+            ) : null}
 
+            {activeDockTab === "safety" ? (
+              <>
           <GlassCard className="p-4">
             <div className="flex items-center justify-between">
               <SectionLabel>Devices and safety</SectionLabel>
@@ -1625,7 +2479,10 @@ export function ChatExperience() {
               )}
             </div>
           </GlassCard>
-        </div>
+          </>
+            ) : null}
+          </div>
+        </GlassCard>
       </div>
     </>
   );
