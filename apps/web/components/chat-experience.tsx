@@ -61,6 +61,9 @@ export function ChatExperience() {
   const [recoveryPhone, setRecoveryPhone] = useState("");
   const [ghostMode, setGhostMode] = useState(true);
   const [isSending, setIsSending] = useState(false);
+  const [authError, setAuthError] = useState("");
+  const [composerError, setComposerError] = useState("");
+  const [systemNote, setSystemNote] = useState("");
   const reduceMotion = useReducedMotion();
   const deferredDraft = useDeferredValue(draft);
 
@@ -114,23 +117,36 @@ export function ChatExperience() {
   const ghostRewrite = useMemo(() => rewriteWithGhostMode(deferredDraft), [deferredDraft]);
 
   async function loadBootstrap() {
-    const payload = await fetchBootstrap();
-    if (!payload) {
+    try {
+      const payload = await fetchBootstrap();
+      if (!payload) {
+        setState(null);
+        setAuthStage("signed_out");
+        setConnectionLabel("auth-gated");
+        return false;
+      }
+
+      startTransition(() => {
+        setState(payload);
+        setSelectedWorkspaceId(payload.conversations.some((item) => !item.workspaceId) ? "direct" : payload.workspaces[0]?.id ?? "direct");
+        setSelectedConversationId(payload.conversations[0]?.id ?? "");
+        setConnectionLabel(payload.activeSession.pendingApproval ? "pending-trust" : "trusted-session");
+        setOnboardingName(payload.users.find((user) => user.id === payload.currentUserId)?.name ?? "");
+        setOnboardingHandle(payload.users.find((user) => user.id === payload.currentUserId)?.handle ?? "");
+        setGhostMode(payload.users.find((user) => user.id === payload.currentUserId)?.ghostMode ?? true);
+      });
+      setAuthError("");
+      setComposerError("");
+      setSystemNote("");
+      setAuthStage("ready");
+      return true;
+    } catch {
       setState(null);
       setAuthStage("signed_out");
-      return;
+      setConnectionLabel("auth-gated");
+      setAuthError("Synq could not restore the current session. Sign in again to reopen the workspace.");
+      return false;
     }
-
-    startTransition(() => {
-      setState(payload);
-      setSelectedWorkspaceId(payload.conversations.some((item) => !item.workspaceId) ? "direct" : payload.workspaces[0]?.id ?? "direct");
-      setSelectedConversationId(payload.conversations[0]?.id ?? "");
-      setConnectionLabel(payload.activeSession.pendingApproval ? "pending-trust" : "trusted-session");
-      setOnboardingName(payload.users.find((user) => user.id === payload.currentUserId)?.name ?? "");
-      setOnboardingHandle(payload.users.find((user) => user.id === payload.currentUserId)?.handle ?? "");
-      setGhostMode(payload.users.find((user) => user.id === payload.currentUserId)?.ghostMode ?? true);
-    });
-    setAuthStage("ready");
   }
 
   function applyAck(message: MessageEnvelope) {
@@ -213,81 +229,122 @@ export function ChatExperience() {
 
   async function handleTrustedSignIn() {
     setAuthBusy(true);
+    setAuthError("");
     try {
       const verified = await runPasskeyFlow("authenticate", "Studio Mac");
       setStoredSession(verified.session);
       await loadBootstrap();
+      setSystemNote("Trusted session restored on Studio Mac.");
+    } catch {
+      clearStoredSession();
+      setAuthError("Trusted device sign-in failed. Try the demo entry again or mint a new identity.");
     } finally {
       setAuthBusy(false);
     }
   }
 
+  async function handleDemoAccess() {
+    setAuthLabel("Studio Mac");
+    await handleTrustedSignIn();
+  }
+
   async function handleRegisterIdentity() {
     setAuthBusy(true);
+    setAuthError("");
     try {
       const verified = await runPasskeyFlow("register", authLabel);
       setStoredSession(verified.session);
       await loadBootstrap();
+      setSystemNote(`Private identity created for ${authLabel}.`);
+    } catch {
+      clearStoredSession();
+      setAuthError("Synq could not create a new passkey identity right now.");
     } finally {
       setAuthBusy(false);
     }
   }
 
   async function handleOnboardingSubmit() {
-    await completeOnboarding({
-      name: onboardingName.trim(),
-      handle: onboardingHandle.trim(),
-      ghostMode,
-      recoveryMethods: [
-        ...(recoveryEmail.trim() ? [{ kind: "email" as const, value: recoveryEmail.trim() }] : []),
-        ...(recoveryPhone.trim() ? [{ kind: "phone" as const, value: recoveryPhone.trim() }] : []),
-      ],
-    });
-    await loadBootstrap();
+    if (!onboardingName.trim() || !onboardingHandle.trim()) {
+      setAuthError("Name and handle are required before the vault can open.");
+      return;
+    }
+
+    try {
+      await completeOnboarding({
+        name: onboardingName.trim(),
+        handle: onboardingHandle.trim(),
+        ghostMode,
+        recoveryMethods: [
+          ...(recoveryEmail.trim() ? [{ kind: "email" as const, value: recoveryEmail.trim() }] : []),
+          ...(recoveryPhone.trim() ? [{ kind: "phone" as const, value: recoveryPhone.trim() }] : []),
+        ],
+      });
+      await loadBootstrap();
+      setSystemNote("Identity completed. Your private workspace is ready.");
+      setAuthError("");
+    } catch {
+      setAuthError("Synq could not save your onboarding details. Check the handle format and try again.");
+    }
   }
 
   async function handleStageAttachment(file: File) {
-    setAttachmentState(`Signing ${file.name}...`);
-    const signed = await signAttachment({
-      fileName: file.name,
-      mimeType: file.type || "application/octet-stream",
-      size: file.size || 1,
-    });
-    const fileBytes = new Uint8Array(await file.arrayBuffer());
-    const encryptedBody = encryptAttachmentBytes(
-      fileBytes,
-      signed.secret,
-      signed.nonce,
-    );
-    await uploadAttachmentContent(signed.attachmentId, {
-      encryptedBodyBase64: bytesToBase64String(encryptedBody),
-    });
-    await finalizeAttachment({
-      attachmentId: signed.attachmentId,
-      keyId: signed.keyId,
-      encryptedUrl: signed.encryptedUrl,
-    });
-
-    setPendingAttachments((current) => [
-      ...current,
-      {
-        id: signed.attachmentId,
-        name: file.name,
+    setComposerError("");
+    try {
+      setAttachmentState(`Signing ${file.name}...`);
+      const signed = await signAttachment({
+        fileName: file.name,
         mimeType: file.type || "application/octet-stream",
         size: file.size || 1,
+      });
+      const fileBytes = new Uint8Array(await file.arrayBuffer());
+      const encryptedBody = encryptAttachmentBytes(
+        fileBytes,
+        signed.secret,
+        signed.nonce,
+      );
+      await uploadAttachmentContent(signed.attachmentId, {
+        encryptedBodyBase64: bytesToBase64String(encryptedBody),
+      });
+      await finalizeAttachment({
+        attachmentId: signed.attachmentId,
         keyId: signed.keyId,
-        nonce: signed.nonce,
-        status: "committed",
         encryptedUrl: signed.encryptedUrl,
-      },
-    ]);
-    setAttachmentState(`${file.name} encrypted, uploaded, and staged.`);
+      });
+
+      setPendingAttachments((current) => [
+        ...current,
+        {
+          id: signed.attachmentId,
+          name: file.name,
+          mimeType: file.type || "application/octet-stream",
+          size: file.size || 1,
+          keyId: signed.keyId,
+          nonce: signed.nonce,
+          status: "committed",
+          encryptedUrl: signed.encryptedUrl,
+        },
+      ]);
+      setAttachmentState(`${file.name} encrypted, uploaded, and staged.`);
+      setSystemNote(`${file.name} is ready to send.`);
+    } catch {
+      setAttachmentState("Attachment staging failed.");
+      setComposerError("Synq could not encrypt and stage that file.");
+    }
   }
 
   async function handleSend() {
-    if (!draft.trim() || !selectedConversation || !currentUser || !state) return;
+    if (!selectedConversation || !currentUser || !state) return;
+
+    const trimmedDraft = draft.trim();
+    const hasAttachments = pendingAttachments.length > 0;
+    if (!trimmedDraft && !hasAttachments) {
+      setComposerError("Write a message or stage an attachment before sending.");
+      return;
+    }
 
     setIsSending(true);
+    setComposerError("");
     const recipientId = selectedConversation.participantIds.find((id) => id !== currentUser.id) ?? currentUser.id;
     const recipientKey =
       state.devices.find((device) => device.userId === recipientId)?.publicKey ??
@@ -299,7 +356,8 @@ export function ChatExperience() {
     }
 
     const clientId = crypto.randomUUID();
-    const optimisticPreview = draft.trim();
+    const optimisticPreview =
+      trimmedDraft || `Sent ${pendingAttachments.length} secure attachment${pendingAttachments.length > 1 ? "s" : ""}.`;
     const sealed = sealPreviewForRecipient(optimisticPreview, recipientKey);
     const optimistic: MessageEnvelope = {
       id: `local_${clientId}`,
@@ -359,10 +417,12 @@ export function ChatExperience() {
         const ack = await sendMessage(payload);
         applyAck(ack);
       }
+      setSystemNote("Signal delivered.");
     } catch {
       await enqueueMessage(payload);
       setQueueCount((count) => count + 1);
       setConnectionLabel("queued-offline");
+      setSystemNote("Signal queued locally and will replay when the connection returns.");
     } finally {
       setIsSending(false);
     }
@@ -370,20 +430,32 @@ export function ChatExperience() {
 
   async function handleWorkspaceAI() {
     if (!selectedConversation || !currentUser) return;
-    const result = await runAIAction({
-      conversationId: selectedConversation.id,
-      action: "memory",
-      policy: selectedConversation.visibility === "e2ee" ? "local" : currentUser.aiPolicy,
-      input: draft || selectedConversation.lastMessagePreview,
-    });
-    setCloudResult(result.result);
+    try {
+      if (selectedConversation.visibility === "e2ee") {
+        setCloudResult(`Local-only insight: ${localSummary}`);
+        setSystemNote("Sealed-room AI stayed on this device.");
+        return;
+      }
+
+      const result = await runAIAction({
+        conversationId: selectedConversation.id,
+        action: "memory",
+        policy: currentUser.aiPolicy,
+        input: draft || selectedConversation.lastMessagePreview,
+      });
+      setCloudResult(result.result);
+      setSystemNote("Workspace AI pulse refreshed.");
+    } catch {
+      setCloudResult("Workspace AI is unavailable right now.");
+      setSystemNote("AI refresh failed, but your messages and local vault are safe.");
+    }
   }
 
   if (authStage === "loading") {
     return (
       <GlassCard className="p-8 sm:p-10">
         <SectionLabel>Booting</SectionLabel>
-        <h2 className="mt-4 font-[family-name:var(--font-display)] text-4xl text-white">Restoring trusted session…</h2>
+        <h2 className="mt-4 font-[family-name:var(--font-display)] text-4xl text-white">Restoring trusted session...</h2>
         <p className="mt-4 text-white/60">Synq is validating the current device, session, and local vault before opening the workspace.</p>
       </GlassCard>
     );
@@ -398,9 +470,18 @@ export function ChatExperience() {
           <p className="mt-4 max-w-2xl text-white/65">
             Synq now boots behind passkey-style session trust. Sealed rooms stay local, device approvals are explicit, and the workspace only loads after auth.
           </p>
+          <p className="mt-4 text-sm text-[#B9F6FF]">Fastest path: use the demo trusted device label `Studio Mac`.</p>
+          {authError ? (
+            <div className="mt-6 rounded-[24px] border border-[#FF7A6E]/30 bg-[#FF7A6E]/10 px-4 py-3 text-sm text-[#FFD1CB]">
+              {authError}
+            </div>
+          ) : null}
           <div className="mt-8 flex flex-wrap gap-3">
             <button type="button" onClick={() => void handleTrustedSignIn()} disabled={authBusy} className="rounded-full bg-[linear-gradient(135deg,#5DE4FF,#FF7A6E)] px-6 py-3 font-medium text-[#071019] disabled:opacity-60">
               {authBusy ? "Opening..." : "Continue on trusted device"}
+            </button>
+            <button type="button" onClick={() => void handleDemoAccess()} disabled={authBusy} className="rounded-full border border-[#5DE4FF]/30 px-6 py-3 text-[#B9F6FF] disabled:opacity-60">
+              Enter demo workspace
             </button>
             <button type="button" onClick={() => void handleRegisterIdentity()} disabled={authBusy} className="rounded-full border border-white/10 px-6 py-3 text-white/75 disabled:opacity-60">
               Create new passkey identity
@@ -422,6 +503,11 @@ export function ChatExperience() {
         <GlassCard className="p-8 sm:p-10">
           <SectionLabel>Onboarding</SectionLabel>
           <h2 className="mt-4 font-[family-name:var(--font-display)] text-4xl text-white">Finish your private identity.</h2>
+          {authError ? (
+            <div className="mt-6 rounded-[24px] border border-[#FF7A6E]/30 bg-[#FF7A6E]/10 px-4 py-3 text-sm text-[#FFD1CB]">
+              {authError}
+            </div>
+          ) : null}
           <div className="mt-8 grid gap-4 md:grid-cols-2">
             <input value={onboardingName} onChange={(event) => setOnboardingName(event.target.value)} placeholder="Display name" className="rounded-2xl border border-white/10 bg-white/[0.04] px-4 py-3 text-white outline-none" />
             <input value={onboardingHandle} onChange={(event) => setOnboardingHandle(event.target.value)} placeholder="handle" className="rounded-2xl border border-white/10 bg-white/[0.04] px-4 py-3 text-white outline-none" />
@@ -514,6 +600,11 @@ export function ChatExperience() {
               This device is pending trust approval. Sealed history stays limited until another approved device confirms it.
             </div>
           ) : null}
+          {systemNote ? (
+            <div className="mt-4 rounded-[24px] border border-[#5DE4FF]/20 bg-[#5DE4FF]/10 px-4 py-3 text-sm text-[#D8FBFF]">
+              {systemNote}
+            </div>
+          ) : null}
         </div>
 
         <div className="space-y-3 px-5 py-5">
@@ -542,6 +633,11 @@ export function ChatExperience() {
         <div className="border-t border-white/8 px-5 py-4">
           <div className="grid gap-3">
             <textarea value={draft} onChange={(event) => setDraft(event.target.value)} placeholder="Send a private signal..." className="min-h-28 rounded-[24px] border border-white/10 bg-white/[0.04] px-4 py-4 text-white outline-none placeholder:text-white/30" />
+            {composerError ? (
+              <div className="rounded-[20px] border border-[#FF7A6E]/30 bg-[#FF7A6E]/10 px-4 py-3 text-sm text-[#FFD1CB]">
+                {composerError}
+              </div>
+            ) : null}
             <div className="grid gap-3 xl:grid-cols-[minmax(0,1fr)_auto_auto]">
               <div className="rounded-[24px] border border-white/8 bg-black/20 px-4 py-3 text-sm text-white/60">Ghost rewrite: {ghostRewrite}</div>
               <label className="cursor-pointer rounded-[24px] border border-white/10 px-4 py-3 text-sm text-white/70">
