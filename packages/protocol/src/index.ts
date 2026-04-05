@@ -478,7 +478,8 @@ export const AttachmentFinalizeRequestSchema = z.object({
     .string()
     .url()
     .or(z.string().startsWith("encrypted://"))
-    .or(z.string().startsWith("/attachments/")),
+    .or(z.string().startsWith("/attachments/"))
+    .or(z.string().startsWith("/api/synq/attachments/")),
 });
 
 export const AttachmentUploadRequestSchema = z.object({

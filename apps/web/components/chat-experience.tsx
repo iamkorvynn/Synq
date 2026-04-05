@@ -1174,6 +1174,7 @@ export function ChatExperience() {
   async function handleStageAttachment(file: File) {
     try {
       setAttachmentState(`Encrypting ${file.name}...`);
+      setComposerError("");
       const signed = await signAttachment({
         fileName: file.name,
         mimeType: file.type || "application/octet-stream",
@@ -1204,9 +1205,14 @@ export function ChatExperience() {
       ]);
       setAttachmentState(`${file.name} staged.`);
       pushToast("success", `${file.name} is ready to send.`);
-    } catch {
+    } catch (error) {
+      const message =
+        error instanceof Error && error.message
+          ? error.message
+          : "Synq could not encrypt and stage that file.";
       setAttachmentState("Attachment staging failed.");
-      setComposerError("Synq could not encrypt and stage that file.");
+      setComposerError(message);
+      pushToast("error", message);
     }
   }
 
@@ -1338,8 +1344,13 @@ export function ChatExperience() {
         const ack = await sendMessage(payload);
         applyAck(ack);
       }
-    } catch {
-      pushToast("error", "Synq could not deliver that signal.");
+    } catch (error) {
+      const message =
+        error instanceof Error && error.message
+          ? error.message
+          : "Synq could not deliver that signal.";
+      setComposerError(message);
+      pushToast("error", message);
     }
   }
 
@@ -1991,7 +2002,7 @@ export function ChatExperience() {
         className={cx(
           "grid gap-4 xl:h-full xl:min-h-0",
           isDockCollapsed
-            ? "xl:grid-cols-[112px_292px_minmax(0,1.62fr)_76px] 2xl:grid-cols-[120px_304px_minmax(0,1.82fr)_76px]"
+            ? "xl:grid-cols-[112px_292px_minmax(0,1.62fr)_92px] 2xl:grid-cols-[120px_304px_minmax(0,1.82fr)_92px]"
             : "xl:grid-cols-[112px_292px_minmax(0,1.5fr)_348px] 2xl:grid-cols-[120px_304px_minmax(0,1.72fr)_360px]",
         )}
       >
@@ -2827,8 +2838,8 @@ export function ChatExperience() {
 
         <GlassCard
           className={cx(
-            "overflow-hidden xl:h-full xl:min-h-0",
-            isDockCollapsed ? "p-3" : "p-4",
+            "xl:h-full xl:min-h-0",
+            isDockCollapsed ? "overflow-visible p-3" : "overflow-hidden p-4",
           )}
         >
           <div

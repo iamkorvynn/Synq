@@ -73,7 +73,15 @@ async function request<T>(path: string, init?: RequestInit): Promise<T> {
   });
 
   if (!response.ok) {
-    throw new Error(`Request failed for ${path}`);
+    let message = `Request failed for ${path}`;
+    try {
+      const payload = (await response.json()) as { error?: string };
+      if (payload?.error) {
+        message = payload.error;
+      }
+    } catch {}
+
+    throw new Error(message);
   }
 
   return (await response.json()) as T;
