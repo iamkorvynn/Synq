@@ -2104,32 +2104,33 @@ export function ChatExperience() {
           </div>
         </GlassCard>
 
-        <GlassCard className="flex min-h-0 flex-col overflow-hidden p-4 xl:h-full">
-          <SectionLabel>Dock</SectionLabel>
-          <div className="mt-4">
-            <TrustOrb
-              ghostMode={currentUser.ghostMode}
-              queuedCount={queueCount}
-              typing={Boolean(typingUsers.length) || recordingVoice}
-              unreadCount={selectedConversation?.unreadCount ?? totalUnreadCount}
-              tone={conversationTone(selectedConversation)}
-            />
-          </div>
-          <div className="mt-4 grid grid-cols-2 gap-2">
-            {DOCK_TABS.map((tab) => (
-              <button
-                key={tab.id}
-                type="button"
-                data-active={activeDockTab === tab.id}
-                onClick={() => setActiveDockTab(tab.id)}
-                className="synq-tab rounded-[18px] px-3 py-3 text-left"
-              >
-                <p className="text-sm font-medium">{tab.label}</p>
-                <p className="mt-1 text-[11px] leading-5 text-current/70">{tab.caption}</p>
-              </button>
-            ))}
-          </div>
-          <div className="synq-scroll synq-scroll--subtle mt-4 min-h-0 flex-1 space-y-4 overflow-y-auto overscroll-contain pr-2">
+        <GlassCard className="overflow-hidden p-4 xl:h-full xl:min-h-0">
+          <div className="synq-scroll synq-scroll--subtle flex min-h-0 flex-col overflow-y-auto overscroll-contain pr-2 xl:h-full">
+            <SectionLabel>Dock</SectionLabel>
+            <div className="mt-4">
+              <TrustOrb
+                ghostMode={currentUser.ghostMode}
+                queuedCount={queueCount}
+                typing={Boolean(typingUsers.length) || recordingVoice}
+                unreadCount={selectedConversation?.unreadCount ?? totalUnreadCount}
+                tone={conversationTone(selectedConversation)}
+              />
+            </div>
+            <div className="mt-4 grid grid-cols-2 gap-2">
+              {DOCK_TABS.map((tab) => (
+                <button
+                  key={tab.id}
+                  type="button"
+                  data-active={activeDockTab === tab.id}
+                  onClick={() => setActiveDockTab(tab.id)}
+                  className="synq-tab rounded-[18px] px-3 py-3 text-left"
+                >
+                  <p className="text-sm font-medium">{tab.label}</p>
+                  <p className="mt-1 text-[11px] leading-5 text-current/70">{tab.caption}</p>
+                </button>
+              ))}
+            </div>
+            <div className="mt-4 space-y-4">
             {activeDockTab === "memory" ? (
               <GlassCard className="p-4">
                 <div className="flex items-center justify-between">
@@ -2515,6 +2516,7 @@ export function ChatExperience() {
           </GlassCard>
           </>
             ) : null}
+            </div>
           </div>
         </GlassCard>
       </div>
