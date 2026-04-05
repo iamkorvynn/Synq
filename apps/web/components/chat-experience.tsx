@@ -1,4 +1,4 @@
-"use client";
+﻿"use client";
 
 import {
   startTransition,
@@ -87,7 +87,16 @@ type ProfileDraft = {
   privateDiscovery: boolean;
 };
 
-const QUICK_REACTIONS = ["👍", "🔥", "🫶", "👀"];
+type SpaceNavItem = {
+  id: string;
+  kind: "direct" | "workspace";
+  name: string;
+  caption: string;
+  glyph: string;
+  unreadCount: number;
+};
+
+const QUICK_REACTIONS = ["ðŸ‘", "ðŸ”¥", "ðŸ«¶", "ðŸ‘€"];
 const DOCK_TABS: Array<{ id: DockTab; label: string; caption: string }> = [
   { id: "memory", label: "Memory", caption: "Context and pinned signals" },
   { id: "profile", label: "Profile", caption: "Identity, discovery, and contacts" },
@@ -243,6 +252,7 @@ export function ChatExperience() {
   const [activeDockTab, setActiveDockTab] = useState<DockTab>("memory");
   const [onboardingStep, setOnboardingStep] = useState<OnboardingStep>("identity");
   const [showJumpToLatest, setShowJumpToLatest] = useState(false);
+  const [isMobileIdentityOpen, setIsMobileIdentityOpen] = useState(false);
   const deferredDraft = useDeferredValue(draft);
   const typingTimeoutRef = useRef<ReturnType<typeof setTimeout> | null>(null);
   const mediaRecorderRef = useRef<MediaRecorder | null>(null);
@@ -379,6 +389,58 @@ export function ChatExperience() {
       0,
     [state?.conversations],
   );
+  const unreadBySpace = useMemo(() => {
+    const byWorkspace = new Map<string, number>();
+    let direct = 0;
+
+    for (const conversation of state?.conversations ?? []) {
+      const unreadCount = conversation.unreadCount ?? 0;
+      if (!conversation.workspaceId) {
+        direct += unreadCount;
+        continue;
+      }
+
+      byWorkspace.set(
+        conversation.workspaceId,
+        (byWorkspace.get(conversation.workspaceId) ?? 0) + unreadCount,
+      );
+    }
+
+    return { direct, byWorkspace };
+  }, [state?.conversations]);
+  const spaceItems = useMemo<SpaceNavItem[]>(
+    () => [
+      {
+        id: "direct",
+        kind: "direct",
+        name: "Direct signals",
+        caption: "Private threads you choose to open.",
+        glyph: "DM",
+        unreadCount: unreadBySpace.direct,
+      },
+      ...((state?.workspaces ?? []).map((workspace) => ({
+        id: workspace.id,
+        kind: "workspace" as const,
+        name: workspace.name,
+        caption: workspace.ambientScene || workspace.description,
+        glyph: workspaceGlyph(workspace.name),
+        unreadCount: unreadBySpace.byWorkspace.get(workspace.id) ?? 0,
+      })) satisfies SpaceNavItem[]),
+    ],
+    [state?.workspaces, unreadBySpace],
+  );
+  const selectedSpace = useMemo<SpaceNavItem>(
+    () =>
+      spaceItems.find((space) => space.id === selectedWorkspaceId) ?? {
+        id: "direct",
+        kind: "direct",
+        name: "Direct signals",
+        caption: "Private threads you choose to open.",
+        glyph: "DM",
+        unreadCount: unreadBySpace.direct,
+      },
+    [selectedWorkspaceId, spaceItems, unreadBySpace.direct],
+  );
   const ghostPreviewIdentity =
     profileDraft.profileVisibility === "handle_only" || profileDraft.ghostMode
       ? `@${currentUser?.handle ?? "ghost"}`
@@ -414,6 +476,20 @@ export function ChatExperience() {
       setMessageSearch(nextValue);
     }
     setIsSearchOpen(true);
+  }
+
+  function handleSelectWorkspace(nextWorkspaceId: string, closeMobileSheet = false) {
+    setSelectedWorkspaceId(nextWorkspaceId);
+    if (closeMobileSheet) {
+      setIsMobileIdentityOpen(false);
+    }
+  }
+
+  function handleOpenProfileDock(closeMobileSheet = false) {
+    setActiveDockTab("profile");
+    if (closeMobileSheet) {
+      setIsMobileIdentityOpen(false);
+    }
   }
 
   async function loadBootstrap(quiet = false) {
@@ -1334,114 +1410,298 @@ export function ChatExperience() {
         ) : null}
       </AnimatePresence>
 
-      <div className="grid gap-4 xl:h-full xl:min-h-0 xl:grid-cols-[108px_336px_minmax(0,1fr)_388px]">
+      <AnimatePresence>
+        {isMobileIdentityOpen ? (
+          <motion.div
+            initial={reduceMotion ? false : { opacity: 0 }}
+            animate={{ opacity: 1 }}
+            exit={reduceMotion ? undefined : { opacity: 0 }}
+            transition={reduceMotion ? undefined : motionTokens.spring}
+            className="fixed inset-0 z-40 bg-[#02050b]/72 backdrop-blur-sm xl:hidden"
+            onClick={() => setIsMobileIdentityOpen(false)}
+          >
+            <motion.div
+              initial={reduceMotion ? false : { y: 28, opacity: 0 }}
+              animate={{ y: 0, opacity: 1 }}
+              exit={reduceMotion ? undefined : { y: 18, opacity: 0 }}
+              transition={reduceMotion ? undefined : motionTokens.spring}
+              onClick={(event) => event.stopPropagation()}
+              className="absolute inset-x-3 bottom-3 top-20 flex flex-col overflow-hidden rounded-[32px] border border-white/10 bg-[#08111C]/95 shadow-[0_30px_90px_rgba(0,0,0,0.45)]"
+            >
+              <div className="flex items-start justify-between gap-4 border-b border-white/8 px-5 py-4">
+                <div>
+                  <p className="text-base font-semibold text-white">Identity and spaces</p>
+                  <p className="mt-1 text-sm leading-6 text-white/54">
+                    Keep chat primary, then switch context when you need it.
+                  </p>
+                </div>
+                <button
+                  type="button"
+                  onClick={() => setIsMobileIdentityOpen(false)}
+                  className="rounded-full border border-white/10 px-4 py-2 text-sm text-white/68 transition hover:border-white/18 hover:text-white"
+                >
+                  Close
+                </button>
+              </div>
+
+              <div className="synq-scroll min-h-0 flex-1 overflow-y-auto px-5 py-5">
+                <div className="rounded-[28px] border border-white/8 bg-white/[0.03] p-4">
+                  <div className="flex items-start gap-4">
+                    <div className="synq-sigil flex h-16 w-16 shrink-0 items-center justify-center rounded-[22px] border border-white/10 text-lg font-semibold text-white">
+                      {displayAvatar(currentUser)}
+                    </div>
+                    <div className="min-w-0 flex-1">
+                      <div className="flex flex-wrap items-center gap-2">
+                        <p className="truncate text-lg font-semibold text-white">
+                          {displayIdentity(currentUser)}
+                        </p>
+                        {currentUser?.ghostMode ? (
+                          <StatusPill tone="mint" className="text-[10px] tracking-[0.16em]">
+                            STEALTH
+                          </StatusPill>
+                        ) : null}
+                      </div>
+                      <p className="mt-2 text-sm leading-6 text-white/56">
+                        {currentUser?.bio || "Quiet by default. Ready for private signals."}
+                      </p>
+                    </div>
+                  </div>
+                  <div className="mt-4 flex flex-wrap items-center gap-2 text-xs text-white/40">
+                    <span>{totalUnreadCount} unread</span>
+                    <span>|</span>
+                    <span>{connectionLabel}</span>
+                    <span>|</span>
+                    <span>{queueCount} queued</span>
+                  </div>
+                  <button
+                    type="button"
+                    onClick={() => handleOpenProfileDock(true)}
+                    className="mt-4 w-full rounded-full border border-white/10 bg-white/[0.04] px-4 py-3 text-sm text-white/80 transition hover:border-white/18 hover:bg-white/[0.07]"
+                  >
+                    Manage profile
+                  </button>
+                </div>
+
+                <div className="mt-6">
+                  <div className="flex items-start justify-between gap-3">
+                    <div>
+                      <p className="text-base font-semibold text-white">Spaces</p>
+                      <p className="mt-1 text-sm leading-6 text-white/52">
+                        Move between direct signals, shared rooms, and broadcasts.
+                      </p>
+                    </div>
+                    {totalUnreadCount ? <StatusPill tone="coral">{totalUnreadCount} unread</StatusPill> : null}
+                  </div>
+                  <div className="mt-4 grid gap-2.5">
+                    {spaceItems.map((space) => (
+                      <button
+                        key={`mobile-${space.id}`}
+                        type="button"
+                        onClick={() => handleSelectWorkspace(space.id, true)}
+                        className={cx(
+                          "w-full rounded-[24px] border px-4 py-4 text-left transition",
+                          space.id === selectedWorkspaceId
+                            ? "border-[#5DE4FF]/38 bg-[linear-gradient(135deg,rgba(93,228,255,0.14),rgba(255,122,110,0.07))] shadow-[0_16px_38px_rgba(7,16,26,0.24)]"
+                            : "border-white/8 bg-white/[0.03] hover:border-white/14 hover:bg-white/[0.055]",
+                        )}
+                      >
+                        <div className="flex items-center gap-3">
+                          <div className="synq-sigil flex h-12 w-12 shrink-0 items-center justify-center rounded-[18px] border border-white/10 text-sm font-semibold text-white">
+                            {space.glyph}
+                          </div>
+                          <div className="min-w-0 flex-1">
+                            <div className="flex items-center justify-between gap-3">
+                              <p className="truncate font-medium text-white">{space.name}</p>
+                              {space.unreadCount ? (
+                                <span className="rounded-full bg-[#FF7A6E] px-2 py-1 text-[11px] font-semibold text-[#071019]">
+                                  {space.unreadCount}
+                                </span>
+                              ) : null}
+                            </div>
+                            <p className="mt-1 truncate text-sm text-white/54">{space.caption}</p>
+                          </div>
+                        </div>
+                      </button>
+                    ))}
+                  </div>
+                </div>
+
+                <div className="mt-6 border-t border-white/8 pt-4">
+                  <button
+                    type="button"
+                    onClick={() => void signOut({ callbackUrl: "/chat" })}
+                    className="text-sm text-white/56 transition hover:text-white/82"
+                  >
+                    Sign out
+                  </button>
+                </div>
+              </div>
+            </motion.div>
+          </motion.div>
+        ) : null}
+      </AnimatePresence>
+
+      <div className="grid gap-4 xl:h-full xl:min-h-0 xl:grid-cols-[minmax(0,296px)_320px_minmax(0,1fr)_388px] 2xl:grid-cols-[minmax(0,312px)_336px_minmax(0,1fr)_388px]">
         <motion.aside
           layout
           transition={reduceMotion ? undefined : motionTokens.spring}
-          className="synq-scroll space-y-4 xl:h-full xl:min-h-0 xl:overflow-y-auto xl:pr-1"
+          className="hidden xl:block xl:h-full xl:min-h-0"
         >
-          <GlassCard className="p-4">
+          <GlassCard className="flex h-full min-h-0 flex-col p-5">
             <SectionLabel>Identity</SectionLabel>
-            <div className="mt-4 flex flex-col items-start gap-4">
-              <div className="synq-sigil flex h-14 w-14 items-center justify-center rounded-[20px] border border-white/10 text-lg font-semibold text-white">
-                {currentUser.hiddenAvatar ? "--" : currentUser.avatar}
+            <div className="mt-4 flex items-start gap-4">
+              <div className="synq-sigil flex h-16 w-16 shrink-0 items-center justify-center rounded-[22px] border border-white/10 text-lg font-semibold text-white">
+                {displayAvatar(currentUser)}
               </div>
-              <div>
+              <div className="min-w-0 flex-1">
                 <div className="flex flex-wrap items-center gap-2">
-                  <p className="font-medium text-white">{displayIdentity(currentUser)}</p>
-                  {currentUser.ghostMode ? (
+                  <p className="truncate text-lg font-semibold text-white">
+                    {displayIdentity(currentUser)}
+                  </p>
+                  {currentUser?.ghostMode ? (
                     <StatusPill tone="mint" className="text-[10px] tracking-[0.16em]">
                       STEALTH
                     </StatusPill>
                   ) : null}
                 </div>
-                <p className="mt-1 text-sm leading-6 text-white/55">
-                  {currentUser.bio || "Quiet by default. Ready for private signals."}
+                <p className="mt-2 text-sm leading-6 text-white/56">
+                  {currentUser?.bio || "Quiet by default. Ready for private signals."}
                 </p>
               </div>
             </div>
-            <div className="mt-4 grid gap-2 rounded-[24px] border border-white/8 bg-white/[0.03] p-3 text-xs text-white/58">
-              <div className="flex items-center justify-between">
-                <span>Unread</span>
-                <span>{totalUnreadCount}</span>
-              </div>
-              <div className="flex items-center justify-between">
-                <span>Connection</span>
-                <span>{connectionLabel}</span>
-              </div>
-              <div className="flex items-center justify-between">
-                <span>Queued</span>
-                <span>{queueCount}</span>
-              </div>
-            </div>
+
             <button
               type="button"
-              onClick={() => void signOut({ callbackUrl: "/chat" })}
-              className="mt-4 w-full rounded-full border border-white/10 px-3 py-2 text-xs text-white/60 transition hover:border-white/20 hover:text-white/82"
+              onClick={() => handleOpenProfileDock()}
+              className="mt-5 w-full rounded-full border border-white/10 bg-white/[0.04] px-4 py-3 text-sm text-white/80 transition hover:border-white/18 hover:bg-white/[0.07]"
             >
-              Sign out
+              Manage profile
             </button>
-          </GlassCard>
 
-          <GlassCard className="p-4">
-            <SectionLabel>Spaces</SectionLabel>
-            <div className="mt-4 grid gap-3">
+            <div className="mt-6 border-t border-white/8 pt-6">
+              <div className="flex items-start justify-between gap-3">
+                <div>
+                  <p className="text-base font-semibold text-white">Spaces</p>
+                  <p className="mt-1 text-sm leading-6 text-white/52">
+                    Move between direct signals, shared rooms, and broadcasts.
+                  </p>
+                </div>
+                {totalUnreadCount ? <StatusPill tone="coral">{totalUnreadCount} unread</StatusPill> : null}
+              </div>
+
+              <div className="mt-4 grid gap-2.5">
+                {spaceItems.map((space) => (
+                  <button
+                    key={space.id}
+                    type="button"
+                    onClick={() => handleSelectWorkspace(space.id)}
+                    className={cx(
+                      "w-full rounded-[24px] border px-4 py-4 text-left transition",
+                      space.id === selectedWorkspaceId
+                        ? "border-[#5DE4FF]/38 bg-[linear-gradient(135deg,rgba(93,228,255,0.14),rgba(255,122,110,0.07))] shadow-[0_16px_38px_rgba(7,16,26,0.24)]"
+                        : "border-white/8 bg-white/[0.03] hover:border-white/14 hover:bg-white/[0.055]",
+                    )}
+                  >
+                    <div className="flex items-center gap-3">
+                      <div className="synq-sigil flex h-12 w-12 shrink-0 items-center justify-center rounded-[18px] border border-white/10 text-sm font-semibold text-white">
+                        {space.glyph}
+                      </div>
+                      <div className="min-w-0 flex-1">
+                        <div className="flex items-center justify-between gap-3">
+                          <p className="truncate font-medium text-white">{space.name}</p>
+                          {space.unreadCount ? (
+                            <span className="rounded-full bg-[#FF7A6E] px-2 py-1 text-[11px] font-semibold text-[#071019]">
+                              {space.unreadCount}
+                            </span>
+                          ) : null}
+                        </div>
+                        <p className="mt-1 truncate text-sm text-white/54">{space.caption}</p>
+                      </div>
+                    </div>
+                  </button>
+                ))}
+              </div>
+            </div>
+
+            <div className="mt-auto border-t border-white/8 pt-4">
+              <p className="text-xs text-white/38">
+                Sync {connectionLabel} | {queueCount} queued
+              </p>
               <button
                 type="button"
-                onClick={() => setSelectedWorkspaceId("direct")}
-                className={cx(
-                  "rounded-[24px] border p-3 text-left transition",
-                  selectedWorkspaceId === "direct"
-                    ? "border-[#5DE4FF]/40 bg-[#5DE4FF]/10 shadow-[0_12px_36px_rgba(93,228,255,0.08)]"
-                    : "border-white/8 bg-white/[0.04] hover:border-white/14 hover:bg-white/[0.06]",
-                )}
+                onClick={() => void signOut({ callbackUrl: "/chat" })}
+                className="mt-3 text-sm text-white/56 transition hover:text-white/82"
               >
-                <div className="flex items-center gap-3">
-                  <div className="synq-sigil flex h-11 w-11 items-center justify-center rounded-[18px] border border-white/10 text-sm font-semibold text-white">
-                    DM
-                  </div>
-                  <div>
-                    <p className="font-medium text-white">Direct signals</p>
-                    <p className="text-sm text-white/55">Private threads and ghost DMs</p>
-                  </div>
-                </div>
+                Sign out
               </button>
-              {state.workspaces.map((workspace) => (
-                <button
-                  key={workspace.id}
-                  type="button"
-                  onClick={() => setSelectedWorkspaceId(workspace.id)}
-                  className={cx(
-                    "rounded-[24px] border p-3 text-left transition",
-                    selectedWorkspaceId === workspace.id
-                      ? "border-[#5DE4FF]/40 bg-[#5DE4FF]/10 shadow-[0_12px_36px_rgba(93,228,255,0.08)]"
-                      : "border-white/8 bg-white/[0.04] hover:border-white/14 hover:bg-white/[0.06]",
-                  )}
-                >
-                  <div className="flex items-center gap-3">
-                    <div className="synq-sigil flex h-11 w-11 items-center justify-center rounded-[18px] border border-white/10 text-sm font-semibold text-white">
-                      {workspaceGlyph(workspace.name)}
-                    </div>
-                    <div>
-                      <p className="font-medium text-white">{workspace.name}</p>
-                      <p className="text-sm text-white/55">{workspace.ambientScene}</p>
-                    </div>
-                  </div>
-                </button>
-              ))}
             </div>
           </GlassCard>
         </motion.aside>
 
+        <div className="xl:hidden">
+          <GlassCard className="p-4">
+            <div className="flex items-start justify-between gap-3">
+              <button
+                type="button"
+                onClick={() => setIsMobileIdentityOpen(true)}
+                className="flex min-w-0 flex-1 items-center gap-3 text-left"
+              >
+                <div className="synq-sigil flex h-12 w-12 shrink-0 items-center justify-center rounded-[18px] border border-white/10 text-sm font-semibold text-white">
+                  {displayAvatar(currentUser)}
+                </div>
+                <div className="min-w-0">
+                  <p className="text-sm font-medium text-white">{displayIdentity(currentUser)}</p>
+                  <p className="mt-1 truncate text-sm text-white/52">
+                    {selectedSpace.name} - {selectedSpace.caption}
+                  </p>
+                </div>
+              </button>
+              <button
+                type="button"
+                onClick={() => setIsMobileIdentityOpen(true)}
+                className="rounded-full border border-white/10 px-4 py-2 text-sm text-white/72 transition hover:border-white/18 hover:text-white"
+              >
+                Spaces
+              </button>
+            </div>
+
+            <div className="mt-4 flex flex-wrap items-center gap-2">
+              <span className="rounded-full border border-white/10 bg-white/[0.04] px-3 py-1.5 text-xs text-white/65">
+                {selectedSpace.glyph} {selectedSpace.name}
+              </span>
+              {selectedSpace.unreadCount ? (
+                <StatusPill tone="coral">{selectedSpace.unreadCount} unread</StatusPill>
+              ) : null}
+            </div>
+          </GlassCard>
+        </div>
+
         <GlassCard className="flex min-h-0 flex-col p-4 transition xl:h-full">
-          <div className="flex items-center justify-between gap-3">
-            <SectionLabel>Signal inbox</SectionLabel>
-            <div className="flex items-center gap-2">
-              {totalUnreadCount ? <StatusPill tone="coral">{totalUnreadCount} unread</StatusPill> : null}
-              <StatusPill>{connectionLabel}</StatusPill>
+          <div className="flex items-start justify-between gap-4">
+            <div className="flex min-w-0 items-start gap-3">
+              <div className="synq-sigil flex h-12 w-12 shrink-0 items-center justify-center rounded-[18px] border border-white/10 text-sm font-semibold text-white">
+                {selectedSpace.glyph}
+              </div>
+              <div className="min-w-0">
+                <SectionLabel>Inbox</SectionLabel>
+                <h2 className="mt-2 truncate text-xl font-semibold text-white">{selectedSpace.name}</h2>
+                <p className="mt-1 text-sm leading-6 text-white/52">
+                  {selectedSpace.kind === "direct"
+                    ? "Private threads you explicitly start."
+                    : `${selectedSpace.caption} - ${visibleConversations.length} room${visibleConversations.length === 1 ? "" : "s"}`}
+                </p>
+              </div>
+            </div>
+            <div className="flex shrink-0 flex-wrap items-center gap-2">
+              {selectedSpace.unreadCount ? (
+                <StatusPill tone="coral">{selectedSpace.unreadCount} unread</StatusPill>
+              ) : null}
+              <span className="rounded-full border border-white/10 px-3 py-1.5 text-xs text-white/56">
+                {visibleConversations.length} room{visibleConversations.length === 1 ? "" : "s"}
+              </span>
             </div>
           </div>
-          <div className="mt-4 rounded-[26px] border border-white/8 bg-white/[0.03] p-3">
+          <div className="mt-5 rounded-[24px] border border-white/7 bg-black/12 p-3">
             <div className="flex items-center justify-between gap-3">
               <div>
                 <p className="text-sm font-medium text-white">Room actions</p>
@@ -1578,7 +1838,9 @@ export function ChatExperience() {
               ))
             ) : (
               <div className="rounded-[26px] border border-dashed border-white/10 bg-white/[0.03] px-4 py-8 text-sm leading-6 text-white/55">
-                No rooms yet. Create one, share a join code, or open a direct signal with a handle.
+                {selectedSpace.kind === "direct"
+                  ? "No direct signals yet. Open one from Find people in the profile dock."
+                  : "No rooms in this space yet. Create one, share a join code, or wait for a new signal."}
               </div>
             )}
           </div>
@@ -2408,7 +2670,7 @@ export function ChatExperience() {
                       <div>
                         <p className="font-medium text-white">{device.label}</p>
                         <p className="text-xs text-white/45">
-                          {device.id === currentDevice?.id ? "Current device" : "Session device"} ·{" "}
+                          {device.id === currentDevice?.id ? "Current device" : "Session device"} -{" "}
                           {device.trustState}
                         </p>
                       </div>
@@ -2500,7 +2762,7 @@ export function ChatExperience() {
                       {displayIdentity(
                         state.users.find((user) => user.id === report.reporterUserId),
                       )}{" "}
-                      · {formatClock(report.createdAt)}
+                      - {formatClock(report.createdAt)}
                     </p>
                     {report.note ? (
                       <p className="mt-2 text-sm text-white/65">{report.note}</p>
@@ -2523,3 +2785,4 @@ export function ChatExperience() {
     </>
   );
 }
+
