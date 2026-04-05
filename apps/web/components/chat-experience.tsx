@@ -4,7 +4,6 @@ import {
   startTransition,
   useDeferredValue,
   useEffect,
-  useId,
   useMemo,
   useRef,
   useState,
@@ -137,7 +136,6 @@ export function ChatExperience() {
   const searchParams = useSearchParams();
   const authErrorCode = searchParams.get("error");
   const reduceMotion = useReducedMotion();
-  const signInFormId = useId();
 
   const [authStage, setAuthStage] = useState<AuthStage>("loading");
   const [state, setState] = useState<SynqBootstrapState | null>(null);
@@ -472,44 +470,8 @@ export function ChatExperience() {
     }
   }
 
-  async function handleGoogleSignIn() {
-    try {
-      const response = await fetch("/api/auth/csrf", {
-        credentials: "include",
-        cache: "no-store",
-      });
-      const payload = (await response.json()) as { csrfToken?: string };
-      if (!payload.csrfToken) {
-        throw new Error("Missing CSRF token.");
-      }
-
-      const form = document.createElement("form");
-      form.method = "POST";
-      form.action = "/api/auth/signin/google";
-      form.style.display = "none";
-
-      const csrfInput = document.createElement("input");
-      csrfInput.name = "csrfToken";
-      csrfInput.value = payload.csrfToken;
-      form.appendChild(csrfInput);
-
-      const callbackInput = document.createElement("input");
-      callbackInput.name = "callbackUrl";
-      callbackInput.value = `${window.location.origin}/chat`;
-      form.appendChild(callbackInput);
-
-      const nonceInput = document.createElement("input");
-      nonceInput.name = "loginRequest";
-      nonceInput.value = signInFormId;
-      form.appendChild(nonceInput);
-
-      document.body.appendChild(form);
-      form.submit();
-    } catch {
-      setAuthError(
-        "Synq could not start Google sign-in. Refresh once and try again.",
-      );
-    }
+  function handleGoogleSignIn() {
+    window.location.assign("/api/auth/start/google");
   }
 
   async function handleStageAttachment(file: File) {
