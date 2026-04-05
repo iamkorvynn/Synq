@@ -10,13 +10,23 @@ function parseCsv(value: string | undefined) {
 
 const allowedEmails = new Set(parseCsv(process.env.SYNQ_INVITE_EMAILS));
 const allowedDomains = new Set(parseCsv(process.env.SYNQ_INVITE_DOMAINS));
-const googleClientId =
-  process.env.AUTH_GOOGLE_ID ??
-  process.env.GOOGLE_CLIENT_ID ??
-  process.env.NEXT_PUBLIC_GOOGLE_CLIENT_ID ??
-  "";
-const googleClientSecret =
-  process.env.AUTH_GOOGLE_SECRET ?? process.env.GOOGLE_CLIENT_SECRET ?? "";
+const authGooglePair =
+  process.env.AUTH_GOOGLE_ID && process.env.AUTH_GOOGLE_SECRET
+    ? {
+        source: "authjs" as const,
+        clientId: process.env.AUTH_GOOGLE_ID,
+        clientSecret: process.env.AUTH_GOOGLE_SECRET,
+      }
+    : null;
+const legacyGooglePair =
+  process.env.GOOGLE_CLIENT_ID && process.env.GOOGLE_CLIENT_SECRET
+    ? {
+        source: "legacy" as const,
+        clientId: process.env.GOOGLE_CLIENT_ID,
+        clientSecret: process.env.GOOGLE_CLIENT_SECRET,
+      }
+    : null;
+const googleConfig = authGooglePair ?? legacyGooglePair;
 const authSecret = process.env.AUTH_SECRET ?? process.env.NEXTAUTH_SECRET;
 
 function isInvited(email: string) {
@@ -41,11 +51,11 @@ export const { handlers, auth, signIn, signOut } = NextAuth({
     error: "/chat",
   },
   providers:
-    googleClientId && googleClientSecret
+    googleConfig
       ? [
           Google({
-            clientId: googleClientId,
-            clientSecret: googleClientSecret,
+            clientId: googleConfig.clientId,
+            clientSecret: googleConfig.clientSecret,
           }),
         ]
       : [],
