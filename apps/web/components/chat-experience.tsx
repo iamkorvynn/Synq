@@ -4,12 +4,13 @@ import {
   startTransition,
   useDeferredValue,
   useEffect,
+  useId,
   useMemo,
   useRef,
   useState,
 } from "react";
 import { useSearchParams } from "next/navigation";
-import { signIn, signOut, useSession } from "next-auth/react";
+import { signOut, useSession } from "next-auth/react";
 import { AnimatePresence, motion, useReducedMotion } from "framer-motion";
 
 import { bytesToBase64String, encryptAttachmentBytes } from "@synq/crypto";
@@ -136,6 +137,7 @@ export function ChatExperience() {
   const searchParams = useSearchParams();
   const authErrorCode = searchParams.get("error");
   const reduceMotion = useReducedMotion();
+  const signInFormId = useId();
 
   const [authStage, setAuthStage] = useState<AuthStage>("loading");
   const [state, setState] = useState<SynqBootstrapState | null>(null);
@@ -467,6 +469,46 @@ export function ChatExperience() {
       pushToast("success", "Identity completed.");
     } catch {
       setAuthError("Synq could not save your onboarding details.");
+    }
+  }
+
+  async function handleGoogleSignIn() {
+    try {
+      const response = await fetch("/api/auth/csrf", {
+        credentials: "include",
+        cache: "no-store",
+      });
+      const payload = (await response.json()) as { csrfToken?: string };
+      if (!payload.csrfToken) {
+        throw new Error("Missing CSRF token.");
+      }
+
+      const form = document.createElement("form");
+      form.method = "POST";
+      form.action = "/api/auth/signin/google";
+      form.style.display = "none";
+
+      const csrfInput = document.createElement("input");
+      csrfInput.name = "csrfToken";
+      csrfInput.value = payload.csrfToken;
+      form.appendChild(csrfInput);
+
+      const callbackInput = document.createElement("input");
+      callbackInput.name = "callbackUrl";
+      callbackInput.value = `${window.location.origin}/chat`;
+      form.appendChild(callbackInput);
+
+      const nonceInput = document.createElement("input");
+      nonceInput.name = "loginRequest";
+      nonceInput.value = signInFormId;
+      form.appendChild(nonceInput);
+
+      document.body.appendChild(form);
+      form.submit();
+    } catch {
+      setAuthError(
+        "Synq could not start Google sign-in. Refresh once and try again.",
+      );
     }
   }
 
@@ -811,7 +853,7 @@ export function ChatExperience() {
           ) : null}
           <button
             type="button"
-            onClick={() => void signIn("google", { callbackUrl: "/chat" })}
+            onClick={() => void handleGoogleSignIn()}
             className="mt-8 rounded-full bg-[linear-gradient(135deg,#5DE4FF,#FF7A6E)] px-6 py-3 font-medium text-[#071019]"
           >
             Continue with Google
