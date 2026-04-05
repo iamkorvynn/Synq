@@ -226,6 +226,7 @@ export function ChatExperience() {
   const [messageSearch, setMessageSearch] = useState("");
   const [isSearchOpen, setIsSearchOpen] = useState(false);
   const [isUtilitiesOpen, setIsUtilitiesOpen] = useState(false);
+  const [isInboxCollapsed, setIsInboxCollapsed] = useState(false);
   const [joinCode, setJoinCode] = useState("");
   const [handleSearch, setHandleSearch] = useState("");
   const [contactResults, setContactResults] = useState<User[]>([]);
@@ -1432,122 +1433,175 @@ export function ChatExperience() {
           </GlassCard>
         </motion.aside>
 
-        <GlassCard className="flex min-h-0 flex-col p-4 xl:h-full">
+        <GlassCard
+          className={cx(
+            "flex min-h-0 flex-col p-4 transition",
+            isInboxCollapsed ? "xl:self-start" : "xl:h-full",
+          )}
+        >
           <div className="flex items-center justify-between gap-3">
             <SectionLabel>Signal inbox</SectionLabel>
             <div className="flex items-center gap-2">
               {totalUnreadCount ? <StatusPill tone="coral">{totalUnreadCount} unread</StatusPill> : null}
               <StatusPill>{connectionLabel}</StatusPill>
-            </div>
-          </div>
-          <div className="mt-4 rounded-[26px] border border-white/8 bg-white/[0.03] p-3">
-            <div className="grid gap-2">
-              <input
-                value={roomTitle}
-                onChange={(event) => setRoomTitle(event.target.value)}
-                placeholder="New room title"
-                className="rounded-[18px] border border-white/10 bg-white/[0.04] px-3 py-2 text-sm text-white outline-none"
-              />
-              <input
-                value={roomSubtitle}
-                onChange={(event) => setRoomSubtitle(event.target.value)}
-                placeholder="Room subtitle"
-                className="rounded-[18px] border border-white/10 bg-white/[0.04] px-3 py-2 text-sm text-white outline-none"
-              />
-              <input
-                value={roomHandles}
-                onChange={(event) => setRoomHandles(event.target.value)}
-                placeholder="Invite handles, comma separated"
-                className="rounded-[18px] border border-white/10 bg-white/[0.04] px-3 py-2 text-sm text-white outline-none"
-              />
               <button
                 type="button"
-                onClick={() => void handleCreateRoom()}
-                className="rounded-full border border-[#5DE4FF]/30 bg-[#5DE4FF]/10 px-3 py-2 text-sm text-white transition hover:border-[#5DE4FF]/45 hover:bg-[#5DE4FF]/14"
+                aria-expanded={!isInboxCollapsed}
+                aria-label={isInboxCollapsed ? "Expand signal inbox" : "Collapse signal inbox"}
+                onClick={() => setIsInboxCollapsed((current) => !current)}
+                className="rounded-full border border-white/10 bg-white/[0.04] px-3 py-2 text-xs text-white/72 transition hover:border-white/18 hover:text-white"
               >
-                Create room
+                {isInboxCollapsed ? "Expand" : "Collapse"}
               </button>
             </div>
           </div>
-          <div className="mt-3 rounded-[26px] border border-white/8 bg-white/[0.03] p-3">
-            <div className="grid gap-2">
-              <input
-                value={joinCode}
-                onChange={(event) => setJoinCode(event.target.value)}
-                placeholder="Join code"
-                className="rounded-[18px] border border-white/10 bg-white/[0.04] px-3 py-2 text-sm text-white outline-none"
-              />
-              <button
-                type="button"
-                onClick={() => void handleJoinRoom()}
-                className="rounded-full border border-white/10 px-3 py-2 text-sm text-white/70 transition hover:border-white/18 hover:text-white/88"
+          <AnimatePresence mode="wait" initial={false}>
+            {isInboxCollapsed ? (
+              <motion.div
+                key="inbox-collapsed"
+                initial={reduceMotion ? false : { opacity: 0, height: 0, y: -8 }}
+                animate={{ opacity: 1, height: "auto", y: 0 }}
+                exit={reduceMotion ? undefined : { opacity: 0, height: 0, y: -6 }}
+                transition={reduceMotion ? undefined : motionTokens.spring}
+                className="overflow-hidden"
               >
-                Join by code
-              </button>
-            </div>
-          </div>
-          <div className="synq-scroll mt-4 min-h-0 flex-1 space-y-3 overflow-y-auto pr-1">
-            {visibleConversations.length ? (
-              visibleConversations.map((conversation) => (
-                <motion.button
-                  key={conversation.id}
-                  type="button"
-                  layout
-                  transition={reduceMotion ? undefined : motionTokens.spring}
-                  onClick={() => setSelectedConversationId(conversation.id)}
-                  className={cx(
-                    "w-full rounded-[26px] border p-4 text-left transition",
-                    conversation.id === selectedConversation?.id
-                      ? "border-[#5DE4FF]/40 bg-[linear-gradient(135deg,rgba(93,228,255,0.14),rgba(255,122,110,0.08))] shadow-[0_18px_44px_rgba(7,16,26,0.28)]"
-                      : "border-white/8 bg-white/[0.04] hover:border-white/14 hover:bg-white/[0.06]",
-                  )}
-                >
+                <div className="mt-4 rounded-[26px] border border-white/8 bg-white/[0.03] p-4">
                   <div className="flex items-start gap-3">
                     <div className="synq-sigil flex h-12 w-12 shrink-0 items-center justify-center rounded-[18px] border border-white/10 text-sm font-semibold text-white">
-                      {roomGlyph(conversation)}
+                      {roomGlyph(selectedConversation)}
                     </div>
                     <div className="min-w-0 flex-1">
-                      <div className="flex items-start justify-between gap-3">
-                        <div className="min-w-0">
-                          <p className="truncate font-medium text-white">{conversation.title}</p>
-                          <p className="truncate text-sm text-white/55">{conversation.subtitle}</p>
-                        </div>
-                        <div className="flex shrink-0 items-center gap-2">
-                          {conversation.unreadCount ? (
-                            <span className="rounded-full bg-[#FF7A6E] px-2 py-1 text-[11px] font-semibold text-[#071019]">
-                              {conversation.unreadCount}
-                            </span>
-                          ) : null}
-                          <StatusPill
-                            tone={
-                              conversation.visibility === "e2ee"
-                                ? "mint"
-                                : conversation.kind === "creator_channel"
-                                  ? "coral"
-                                  : "cyan"
-                            }
-                          >
-                            {toneLabel(conversation)}
-                          </StatusPill>
-                        </div>
-                      </div>
-                      <p className="mt-3 line-clamp-2 text-sm leading-6 text-white/55">
-                        {conversation.lastMessagePreview}
+                      <p className="text-sm uppercase tracking-[0.18em] text-white/38">Focused room</p>
+                      <p className="mt-2 truncate font-medium text-white">
+                        {selectedConversation?.title || "No room selected"}
                       </p>
-                      <div className="mt-3 flex items-center justify-between text-xs text-white/40">
-                        <span>{conversation.kind.replaceAll("_", " ")}</span>
-                        <span>{formatClock(conversation.lastActivityAt)}</span>
-                      </div>
+                      <p className="mt-1 text-sm text-white/55">
+                        {visibleConversations.length} room{visibleConversations.length === 1 ? "" : "s"} in this inbox
+                      </p>
                     </div>
                   </div>
-                </motion.button>
-              ))
+                </div>
+              </motion.div>
             ) : (
-              <div className="rounded-[26px] border border-dashed border-white/10 bg-white/[0.03] px-4 py-8 text-sm leading-6 text-white/55">
-                No rooms yet. Create one, share a join code, or open a direct signal with a handle.
-              </div>
+              <motion.div
+                key="inbox-open"
+                initial={reduceMotion ? false : { opacity: 0, height: 0, y: -8 }}
+                animate={{ opacity: 1, height: "auto", y: 0 }}
+                exit={reduceMotion ? undefined : { opacity: 0, height: 0, y: -6 }}
+                transition={reduceMotion ? undefined : motionTokens.spring}
+                className="flex min-h-0 flex-1 flex-col overflow-hidden"
+              >
+                <div className="mt-4 rounded-[26px] border border-white/8 bg-white/[0.03] p-3">
+                  <div className="grid gap-2">
+                    <input
+                      value={roomTitle}
+                      onChange={(event) => setRoomTitle(event.target.value)}
+                      placeholder="New room title"
+                      className="rounded-[18px] border border-white/10 bg-white/[0.04] px-3 py-2 text-sm text-white outline-none"
+                    />
+                    <input
+                      value={roomSubtitle}
+                      onChange={(event) => setRoomSubtitle(event.target.value)}
+                      placeholder="Room subtitle"
+                      className="rounded-[18px] border border-white/10 bg-white/[0.04] px-3 py-2 text-sm text-white outline-none"
+                    />
+                    <input
+                      value={roomHandles}
+                      onChange={(event) => setRoomHandles(event.target.value)}
+                      placeholder="Invite handles, comma separated"
+                      className="rounded-[18px] border border-white/10 bg-white/[0.04] px-3 py-2 text-sm text-white outline-none"
+                    />
+                    <button
+                      type="button"
+                      onClick={() => void handleCreateRoom()}
+                      className="rounded-full border border-[#5DE4FF]/30 bg-[#5DE4FF]/10 px-3 py-2 text-sm text-white transition hover:border-[#5DE4FF]/45 hover:bg-[#5DE4FF]/14"
+                    >
+                      Create room
+                    </button>
+                  </div>
+                </div>
+                <div className="mt-3 rounded-[26px] border border-white/8 bg-white/[0.03] p-3">
+                  <div className="grid gap-2">
+                    <input
+                      value={joinCode}
+                      onChange={(event) => setJoinCode(event.target.value)}
+                      placeholder="Join code"
+                      className="rounded-[18px] border border-white/10 bg-white/[0.04] px-3 py-2 text-sm text-white outline-none"
+                    />
+                    <button
+                      type="button"
+                      onClick={() => void handleJoinRoom()}
+                      className="rounded-full border border-white/10 px-3 py-2 text-sm text-white/70 transition hover:border-white/18 hover:text-white/88"
+                    >
+                      Join by code
+                    </button>
+                  </div>
+                </div>
+                <div className="synq-scroll mt-4 min-h-0 flex-1 space-y-3 overflow-y-auto pr-1">
+                  {visibleConversations.length ? (
+                    visibleConversations.map((conversation) => (
+                      <motion.button
+                        key={conversation.id}
+                        type="button"
+                        layout
+                        transition={reduceMotion ? undefined : motionTokens.spring}
+                        onClick={() => setSelectedConversationId(conversation.id)}
+                        className={cx(
+                          "w-full rounded-[26px] border p-4 text-left transition",
+                          conversation.id === selectedConversation?.id
+                            ? "border-[#5DE4FF]/40 bg-[linear-gradient(135deg,rgba(93,228,255,0.14),rgba(255,122,110,0.08))] shadow-[0_18px_44px_rgba(7,16,26,0.28)]"
+                            : "border-white/8 bg-white/[0.04] hover:border-white/14 hover:bg-white/[0.06]",
+                        )}
+                      >
+                        <div className="flex items-start gap-3">
+                          <div className="synq-sigil flex h-12 w-12 shrink-0 items-center justify-center rounded-[18px] border border-white/10 text-sm font-semibold text-white">
+                            {roomGlyph(conversation)}
+                          </div>
+                          <div className="min-w-0 flex-1">
+                            <div className="flex items-start justify-between gap-3">
+                              <div className="min-w-0">
+                                <p className="truncate font-medium text-white">{conversation.title}</p>
+                                <p className="truncate text-sm text-white/55">{conversation.subtitle}</p>
+                              </div>
+                              <div className="flex shrink-0 items-center gap-2">
+                                {conversation.unreadCount ? (
+                                  <span className="rounded-full bg-[#FF7A6E] px-2 py-1 text-[11px] font-semibold text-[#071019]">
+                                    {conversation.unreadCount}
+                                  </span>
+                                ) : null}
+                                <StatusPill
+                                  tone={
+                                    conversation.visibility === "e2ee"
+                                      ? "mint"
+                                      : conversation.kind === "creator_channel"
+                                        ? "coral"
+                                        : "cyan"
+                                  }
+                                >
+                                  {toneLabel(conversation)}
+                                </StatusPill>
+                              </div>
+                            </div>
+                            <p className="mt-3 line-clamp-2 text-sm leading-6 text-white/55">
+                              {conversation.lastMessagePreview}
+                            </p>
+                            <div className="mt-3 flex items-center justify-between text-xs text-white/40">
+                              <span>{conversation.kind.replaceAll("_", " ")}</span>
+                              <span>{formatClock(conversation.lastActivityAt)}</span>
+                            </div>
+                          </div>
+                        </div>
+                      </motion.button>
+                    ))
+                  ) : (
+                    <div className="rounded-[26px] border border-dashed border-white/10 bg-white/[0.03] px-4 py-8 text-sm leading-6 text-white/55">
+                      No rooms yet. Create one, share a join code, or open a direct signal with a handle.
+                    </div>
+                  )}
+                </div>
+              </motion.div>
             )}
-          </div>
+          </AnimatePresence>
         </GlassCard>
 
         <GlassCard

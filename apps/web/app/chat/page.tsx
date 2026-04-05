@@ -5,7 +5,7 @@ import { ChatExperience } from "@/components/chat-experience";
 
 export default function ChatPage() {
   return (
-    <main className="min-h-screen px-4 py-4 sm:px-6 lg:px-8 xl:h-[100dvh] xl:overflow-hidden">
+    <main className="box-border min-h-screen px-4 py-4 sm:px-6 lg:px-8 xl:h-[100dvh] xl:overflow-hidden">
       <div className="mx-auto max-w-[1600px] xl:flex xl:h-full xl:min-h-0 xl:flex-col">
         <div className="mb-6 flex shrink-0 flex-wrap items-end justify-between gap-4">
           <div>
