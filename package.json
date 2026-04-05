@@ -7,9 +7,14 @@
     "packages/*"
   ],
   "scripts": {
-    "dev": "concurrently -n web,api -c cyan,magenta \"npm run dev --workspace @synq/web\" \"npm run dev --workspace @synq/api\"",
-    "build": "npm run build --workspaces --if-present",
-    "test": "npm run test --workspaces --if-present"
+    "dev": "npm run dev --workspace @synq/web",
+    "dev:full": "concurrently -n web,api -c cyan,magenta \"npm run dev --workspace @synq/web\" \"npm run dev --workspace @synq/api\"",
+    "build": "npm run build --workspace @synq/web",
+    "build:full": "npm run build --workspace @synq/api && npm run build --workspace @synq/web",
+    "test": "npm run test --workspaces --if-present",
+    "deploy:check": "node scripts/deploy/check-env.mjs",
+    "deploy:prod:config": "docker compose --env-file .env.production -f docker-compose.production.yml config",
+    "deploy:prod:up": "docker compose --env-file .env.production -f docker-compose.production.yml up -d --build"
   },
   "devDependencies": {
     "concurrently": "^9.2.1",

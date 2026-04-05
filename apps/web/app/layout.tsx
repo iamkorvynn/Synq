@@ -1,6 +1,7 @@
 import type { Metadata, Viewport } from "next";
 import { Manrope, Syne } from "next/font/google";
 
+import { AuthProvider } from "@/components/auth-provider";
 import { PwaBootstrap } from "@/components/pwa-bootstrap";
 
 import "./globals.css";
@@ -37,7 +38,7 @@ export default function RootLayout({
         suppressHydrationWarning
         className={`${display.variable} ${body.variable} antialiased`}
       >
-        {children}
+        <AuthProvider>{children}</AuthProvider>
         <PwaBootstrap />
       </body>
     </html>

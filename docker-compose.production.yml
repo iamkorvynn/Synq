@@ -1,0 +1,113 @@
+services:
+  caddy:
+    image: caddy:2.8-alpine
+    restart: unless-stopped
+    depends_on:
+      web:
+        condition: service_healthy
+      api:
+        condition: service_healthy
+    environment:
+      SYNQ_DOMAIN: ${SYNQ_DOMAIN}
+      SYNQ_TLS_EMAIL: ${SYNQ_TLS_EMAIL}
+    ports:
+      - "80:80"
+      - "443:443"
+    volumes:
+      - ./deploy/Caddyfile:/etc/caddy/Caddyfile:ro
+      - caddy_data:/data
+      - caddy_config:/config
+    networks:
+      - synq-public
+      - synq-private
+
+  web:
+    build:
+      context: .
+      dockerfile: apps/web/Dockerfile
+    restart: unless-stopped
+    environment:
+      NODE_ENV: production
+      NEXT_PUBLIC_API_URL: /api
+      NEXT_TELEMETRY_DISABLED: 1
+      PORT: 3000
+      HOSTNAME: 0.0.0.0
+    healthcheck:
+      test: ["CMD-SHELL", "wget -qO- http://127.0.0.1:3000/healthz >/dev/null 2>&1 || exit 1"]
+      interval: 20s
+      timeout: 10s
+      retries: 5
+      start_period: 20s
+    networks:
+      - synq-private
+
+  migrate:
+    build:
+      context: .
+      dockerfile: apps/api/Dockerfile
+    restart: "no"
+    depends_on:
+      postgres:
+        condition: service_healthy
+    environment:
+      NODE_ENV: production
+      SYNQ_POSTGRES_URL: postgresql://${SYNQ_POSTGRES_USER}:${SYNQ_POSTGRES_PASSWORD}@postgres:5432/${SYNQ_POSTGRES_DB}
+    command: ["node", "scripts/migrate.mjs"]
+    networks:
+      - synq-private
+
+  api:
+    build:
+      context: .
+      dockerfile: apps/api/Dockerfile
+    restart: unless-stopped
+    depends_on:
+      postgres:
+        condition: service_healthy
+      migrate:
+        condition: service_completed_successfully
+    environment:
+      NODE_ENV: production
+      SYNQ_API_PORT: 4000
+      SYNQ_CORS_ORIGIN: https://${SYNQ_DOMAIN}
+      SYNQ_STORE_DRIVER: postgres
+      SYNQ_POSTGRES_URL: postgresql://${SYNQ_POSTGRES_USER}:${SYNQ_POSTGRES_PASSWORD}@postgres:5432/${SYNQ_POSTGRES_DB}
+      SYNQ_STORAGE_DIR: /data/synq-storage
+      SYNQ_LOG_LEVEL: ${SYNQ_LOG_LEVEL:-info}
+    volumes:
+      - synq_storage:/data/synq-storage
+    healthcheck:
+      test: ["CMD-SHELL", "wget -qO- http://127.0.0.1:4000/ready >/dev/null 2>&1 || exit 1"]
+      interval: 20s
+      timeout: 10s
+      retries: 5
+      start_period: 20s
+    networks:
+      - synq-private
+
+  postgres:
+    image: postgres:16-alpine
+    restart: unless-stopped
+    environment:
+      POSTGRES_DB: ${SYNQ_POSTGRES_DB}
+      POSTGRES_USER: ${SYNQ_POSTGRES_USER}
+      POSTGRES_PASSWORD: ${SYNQ_POSTGRES_PASSWORD}
+    volumes:
+      - synq_pgdata:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U ${SYNQ_POSTGRES_USER} -d ${SYNQ_POSTGRES_DB}"]
+      interval: 10s
+      timeout: 5s
+      retries: 10
+    networks:
+      - synq-private
+
+networks:
+  synq-public:
+  synq-private:
+
+volumes:
+  caddy_data:
+  caddy_config:
+  synq_pgdata:
+  synq_storage:

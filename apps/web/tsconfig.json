@@ -16,6 +16,7 @@
     "jsx": "preserve"
   },
   "include": [
+    "**/*.d.ts",
     "**/*.ts",
     "**/*.tsx",
     ".next/types/**/*.ts",

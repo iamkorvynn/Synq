@@ -1,0 +1,23 @@
+{
+	email {$SYNQ_TLS_EMAIL}
+}
+
+{$SYNQ_DOMAIN} {
+	encode zstd gzip
+
+	handle_path /api/* {
+		reverse_proxy api:4000
+	}
+
+	handle /api/realtime* {
+		reverse_proxy api:4000
+	}
+
+	handle /realtime* {
+		reverse_proxy api:4000
+	}
+
+	handle {
+		reverse_proxy web:3000
+	}
+}

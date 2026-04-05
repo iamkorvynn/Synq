@@ -1,3 +1,5 @@
+import { Suspense } from "react";
+
 import { ChatErrorBoundary } from "@/components/chat-error-boundary";
 import { ChatExperience } from "@/components/chat-experience";
 
@@ -20,7 +22,15 @@ export default function ChatPage() {
         </div>
 
         <ChatErrorBoundary>
-          <ChatExperience />
+          <Suspense
+            fallback={
+              <div className="rounded-[32px] border border-white/10 bg-white/[0.04] p-8 text-white/70 backdrop-blur-2xl">
+                Loading Synq...
+              </div>
+            }
+          >
+            <ChatExperience />
+          </Suspense>
         </ChatErrorBoundary>
       </div>
     </main>

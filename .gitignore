@@ -5,6 +5,7 @@ dist
 coverage
 .turbo
 .env
+.env.production
 .env.local
 npm-debug.log*
 .synq-storage

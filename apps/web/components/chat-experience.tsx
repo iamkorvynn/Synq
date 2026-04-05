@@ -1,6 +1,8 @@
 "use client";
 
 import { startTransition, useDeferredValue, useEffect, useMemo, useState } from "react";
+import { useSearchParams } from "next/navigation";
+import { signIn, signOut, useSession } from "next-auth/react";
 import { AnimatePresence, motion, useReducedMotion } from "framer-motion";
 
 import { bytesToBase64String, encryptAttachmentBytes } from "@synq/crypto";
@@ -9,22 +11,18 @@ import { createDemoState } from "@synq/protocol";
 import { GlassCard, SectionLabel, StatusPill, motionTokens } from "@synq/ui";
 
 import {
-  approveDevice,
   completeOnboarding,
   connectRealtime,
   fetchBootstrap,
   finalizeAttachment,
-  revokeDevice,
   runAIAction,
   sendMessage,
   signAttachment,
   uploadAttachmentContent,
 } from "@/lib/api";
-import { clearStoredSession, getStoredSession, setStoredSession } from "@/lib/auth-session";
 import { getConversationVault, putVaultMessage, rekeyVaultMessage } from "@/lib/message-vault";
 import { buildRelationshipMemory, rewriteWithGhostMode, summarizeConversation } from "@/lib/local-ai";
 import { enqueueMessage, flushQueuedMessages, getQueuedMessages } from "@/lib/offline-queue";
-import { runPasskeyFlow } from "@/lib/passkey";
 import { sealPreviewForRecipient } from "@/lib/session-crypto";
 
 import { TrustOrb } from "./trust-orb";
@@ -41,7 +39,21 @@ function toneLabel(conversation: Conversation) {
   return "managed";
 }
 
+function describeAuthError(code: string | null) {
+  if (!code) return "";
+  if (code === "AccessDenied") {
+    return "This Google account is not on the Synq invite list yet.";
+  }
+  if (code === "Configuration") {
+    return "Google auth is not configured yet. Add the Vercel env vars and try again.";
+  }
+  return "Synq could not complete sign-in with Google.";
+}
+
 export function ChatExperience() {
+  const { status, data: session } = useSession();
+  const searchParams = useSearchParams();
+  const authErrorCode = searchParams.get("error");
   const [authStage, setAuthStage] = useState<AuthStage>("loading");
   const [state, setState] = useState<SynqBootstrapState | null>(null);
   const [selectedWorkspaceId, setSelectedWorkspaceId] = useState("direct");
@@ -49,12 +61,10 @@ export function ChatExperience() {
   const [draft, setDraft] = useState("");
   const [vault, setVault] = useState<Record<string, string>>({});
   const [queueCount, setQueueCount] = useState(0);
-  const [connectionLabel, setConnectionLabel] = useState("auth-gated");
+  const [connectionLabel, setConnectionLabel] = useState("google-oauth");
   const [cloudResult, setCloudResult] = useState("");
   const [attachmentState, setAttachmentState] = useState("No attachments staged.");
   const [pendingAttachments, setPendingAttachments] = useState<Attachment[]>([]);
-  const [authLabel, setAuthLabel] = useState("Studio Mac");
-  const [authBusy, setAuthBusy] = useState(false);
   const [onboardingName, setOnboardingName] = useState("");
   const [onboardingHandle, setOnboardingHandle] = useState("");
   const [recoveryEmail, setRecoveryEmail] = useState("");
@@ -122,18 +132,29 @@ export function ChatExperience() {
       if (!payload) {
         setState(null);
         setAuthStage("signed_out");
-        setConnectionLabel("auth-gated");
+        setConnectionLabel("google-oauth");
         return false;
       }
 
       startTransition(() => {
         setState(payload);
-        setSelectedWorkspaceId(payload.conversations.some((item) => !item.workspaceId) ? "direct" : payload.workspaces[0]?.id ?? "direct");
-        setSelectedConversationId(payload.conversations[0]?.id ?? "");
-        setConnectionLabel(payload.activeSession.pendingApproval ? "pending-trust" : "trusted-session");
-        setOnboardingName(payload.users.find((user) => user.id === payload.currentUserId)?.name ?? "");
+        setSelectedWorkspaceId((current) =>
+          current !== "direct" && payload.workspaces.some((workspace) => workspace.id === current)
+            ? current
+            : payload.conversations.some((item) => !item.workspaceId)
+              ? "direct"
+              : payload.workspaces[0]?.id ?? "direct",
+        );
+        setSelectedConversationId((current) =>
+          payload.conversations.some((conversation) => conversation.id === current)
+            ? current
+            : payload.conversations[0]?.id ?? "",
+        );
+        setConnectionLabel("polling-sync");
+        setOnboardingName(payload.users.find((user) => user.id === payload.currentUserId)?.name ?? session?.user?.name ?? "");
         setOnboardingHandle(payload.users.find((user) => user.id === payload.currentUserId)?.handle ?? "");
         setGhostMode(payload.users.find((user) => user.id === payload.currentUserId)?.ghostMode ?? true);
+        setRecoveryEmail(session?.user?.email ?? "");
       });
       setAuthError("");
       setComposerError("");
@@ -143,8 +164,8 @@ export function ChatExperience() {
     } catch {
       setState(null);
       setAuthStage("signed_out");
-      setConnectionLabel("auth-gated");
-      setAuthError("Synq could not restore the current session. Sign in again to reopen the workspace.");
+      setConnectionLabel("google-oauth");
+      setAuthError("Synq could not load your workspace right now. Try refreshing once.");
       return false;
     }
   }
@@ -193,12 +214,25 @@ export function ChatExperience() {
 
   useEffect(() => {
     getQueuedMessages().then((queue) => setQueueCount(queue.length));
-    if (getStoredSession()) {
-      void loadBootstrap();
-    } else {
-      setAuthStage("signed_out");
-    }
   }, []);
+
+  useEffect(() => {
+    if (status === "loading") {
+      setAuthStage("loading");
+      return;
+    }
+
+    if (status === "unauthenticated") {
+      setState(null);
+      setAuthStage("signed_out");
+      setConnectionLabel("google-oauth");
+      setAuthError(describeAuthError(authErrorCode));
+      return;
+    }
+
+    setAuthStage("loading");
+    void loadBootstrap();
+  }, [authErrorCode, status, session?.user?.email]);
 
   useEffect(() => {
     if (!selectedConversation) return;
@@ -209,7 +243,7 @@ export function ChatExperience() {
     if (!state || authStage !== "ready") return;
 
     const socket = connectRealtime(handleRealtime, () => {
-      setConnectionLabel(state.activeSession.pendingApproval ? "pending-trust" : "socket-open");
+      setConnectionLabel("polling-sync");
     });
 
     const onOnline = () => {
@@ -217,51 +251,28 @@ export function ChatExperience() {
       void flushQueuedMessages(async (message) => {
         const ack = await sendMessage(message);
         applyAck(ack);
-      }).then((result) => setQueueCount(result.remaining));
+      })
+        .then((result) => setQueueCount(result.remaining))
+        .then(() => loadBootstrap());
     };
+
+    const interval = window.setInterval(() => {
+      if (navigator.onLine) {
+        void loadBootstrap();
+      }
+    }, 5000);
 
     window.addEventListener("online", onOnline);
     return () => {
       window.removeEventListener("online", onOnline);
+      window.clearInterval(interval);
       socket.close();
     };
-  }, [authStage, state?.activeSession.accessToken]);
+  }, [authStage, state?.currentUserId]);
 
-  async function handleTrustedSignIn() {
-    setAuthBusy(true);
+  async function handleGoogleSignIn() {
     setAuthError("");
-    try {
-      const verified = await runPasskeyFlow("authenticate", "Studio Mac");
-      setStoredSession(verified.session);
-      await loadBootstrap();
-      setSystemNote("Trusted session restored on Studio Mac.");
-    } catch {
-      clearStoredSession();
-      setAuthError("Trusted device sign-in failed. Try the demo entry again or mint a new identity.");
-    } finally {
-      setAuthBusy(false);
-    }
-  }
-
-  async function handleDemoAccess() {
-    setAuthLabel("Studio Mac");
-    await handleTrustedSignIn();
-  }
-
-  async function handleRegisterIdentity() {
-    setAuthBusy(true);
-    setAuthError("");
-    try {
-      const verified = await runPasskeyFlow("register", authLabel);
-      setStoredSession(verified.session);
-      await loadBootstrap();
-      setSystemNote(`Private identity created for ${authLabel}.`);
-    } catch {
-      clearStoredSession();
-      setAuthError("Synq could not create a new passkey identity right now.");
-    } finally {
-      setAuthBusy(false);
-    }
+    await signIn("google", { callbackUrl: "/chat" });
   }
 
   async function handleOnboardingSubmit() {
@@ -455,8 +466,8 @@ export function ChatExperience() {
     return (
       <GlassCard className="p-8 sm:p-10">
         <SectionLabel>Booting</SectionLabel>
-        <h2 className="mt-4 font-[family-name:var(--font-display)] text-4xl text-white">Restoring trusted session...</h2>
-        <p className="mt-4 text-white/60">Synq is validating the current device, session, and local vault before opening the workspace.</p>
+        <h2 className="mt-4 font-[family-name:var(--font-display)] text-4xl text-white">Restoring your Synq workspace...</h2>
+        <p className="mt-4 text-white/60">Synq is checking your Google session, invite access, and shared rooms before opening the workspace.</p>
       </GlassCard>
     );
   }
@@ -465,29 +476,22 @@ export function ChatExperience() {
     return (
       <div className="grid gap-6 xl:grid-cols-[1.1fr_0.9fr]">
         <GlassCard className="p-8 sm:p-10">
-          <SectionLabel>Trust entry</SectionLabel>
-          <h2 className="mt-4 font-[family-name:var(--font-display)] text-4xl text-white">Sign in with a trusted device or mint a new private identity.</h2>
+          <SectionLabel>Invite-only beta</SectionLabel>
+          <h2 className="mt-4 font-[family-name:var(--font-display)] text-4xl text-white">Sign in with Google to enter the Synq private beta.</h2>
           <p className="mt-4 max-w-2xl text-white/65">
-            Synq now boots behind passkey-style session trust. Sealed rooms stay local, device approvals are explicit, and the workspace only loads after auth.
+            This version is optimized for the free Vercel tier: one Next.js app, one invite-only Google login, and lightweight shared rooms for you and your friends.
           </p>
-          <p className="mt-4 text-sm text-[#B9F6FF]">Fastest path: use the demo trusted device label `Studio Mac`.</p>
+          <p className="mt-4 text-sm text-[#B9F6FF]">Only invited Google accounts can enter.</p>
           {authError ? (
             <div className="mt-6 rounded-[24px] border border-[#FF7A6E]/30 bg-[#FF7A6E]/10 px-4 py-3 text-sm text-[#FFD1CB]">
               {authError}
             </div>
           ) : null}
           <div className="mt-8 flex flex-wrap gap-3">
-            <button type="button" onClick={() => void handleTrustedSignIn()} disabled={authBusy} className="rounded-full bg-[linear-gradient(135deg,#5DE4FF,#FF7A6E)] px-6 py-3 font-medium text-[#071019] disabled:opacity-60">
-              {authBusy ? "Opening..." : "Continue on trusted device"}
-            </button>
-            <button type="button" onClick={() => void handleDemoAccess()} disabled={authBusy} className="rounded-full border border-[#5DE4FF]/30 px-6 py-3 text-[#B9F6FF] disabled:opacity-60">
-              Enter demo workspace
-            </button>
-            <button type="button" onClick={() => void handleRegisterIdentity()} disabled={authBusy} className="rounded-full border border-white/10 px-6 py-3 text-white/75 disabled:opacity-60">
-              Create new passkey identity
+            <button type="button" onClick={() => void handleGoogleSignIn()} className="rounded-full bg-[linear-gradient(135deg,#5DE4FF,#FF7A6E)] px-6 py-3 font-medium text-[#071019]">
+              Continue with Google
             </button>
           </div>
-          <input value={authLabel} onChange={(event) => setAuthLabel(event.target.value)} className="mt-8 w-full max-w-md rounded-2xl border border-white/10 bg-white/[0.04] px-4 py-3 text-white outline-none" />
         </GlassCard>
         <GlassCard className="p-6">
           <SectionLabel>Trust surface</SectionLabel>
@@ -539,7 +543,7 @@ export function ChatExperience() {
           <p className="mt-3 font-medium text-white">{currentUser.name}</p>
           <p className="text-sm text-white/55">@{currentUser.handle}</p>
           <StatusPill tone="mint" className="mt-3">{currentUser.ghostMode ? "Ghost mode" : "Public mode"}</StatusPill>
-          <button type="button" onClick={() => { clearStoredSession(); setState(null); setAuthStage("signed_out"); }} className="mt-3 rounded-full border border-white/10 px-3 py-2 text-xs text-white/60">
+          <button type="button" onClick={() => void signOut({ callbackUrl: "/chat" })} className="mt-3 rounded-full border border-white/10 px-3 py-2 text-xs text-white/60">
             Sign out
           </button>
         </GlassCard>
@@ -590,16 +594,11 @@ export function ChatExperience() {
               <p className="text-sm text-white/55">{selectedConversation?.subtitle}</p>
             </div>
             <div className="flex flex-wrap gap-2">
-              <StatusPill tone="mint">{selectedConversation?.visibility === "e2ee" ? "E2EE sealed" : "Managed private"}</StatusPill>
+              <StatusPill tone="mint">{selectedConversation?.visibility === "e2ee" ? "E2EE sealed" : "Invite-only"}</StatusPill>
               <StatusPill tone="coral">{selectedConversation?.messageProtection ?? "ratcheted"}</StatusPill>
               <StatusPill tone="coral">{queueCount} queued</StatusPill>
             </div>
           </div>
-          {currentDevice?.trustState === "pending" || state.activeSession.pendingApproval ? (
-            <div className="mt-4 rounded-[24px] border border-[#FF7A6E]/30 bg-[#FF7A6E]/10 px-4 py-3 text-sm text-[#FFD1CB]">
-              This device is pending trust approval. Sealed history stays limited until another approved device confirms it.
-            </div>
-          ) : null}
           {systemNote ? (
             <div className="mt-4 rounded-[24px] border border-[#5DE4FF]/20 bg-[#5DE4FF]/10 px-4 py-3 text-sm text-[#D8FBFF]">
               {systemNote}
@@ -670,7 +669,7 @@ export function ChatExperience() {
         <GlassCard className="p-4">
           <SectionLabel>Trust surface</SectionLabel>
           <div className="mt-4"><TrustOrb /></div>
-          <p className="mt-3 text-sm text-white/60">Reduced metadata. Device-bound keys. Human-readable trust.</p>
+          <p className="mt-3 text-sm text-white/60">Free-tier shared mode with Google auth, one domain, and a tiny invite-only crew.</p>
         </GlassCard>
 
         <GlassCard className="p-4">
@@ -706,20 +705,9 @@ export function ChatExperience() {
                     <p className="font-medium text-white">{device.label}</p>
                     <p className="text-sm text-white/55">{device.fingerprint}</p>
                   </div>
-                  <StatusPill tone={device.trustState === "approved" ? "mint" : device.trustState === "pending" ? "coral" : "cyan"}>{device.trustState}</StatusPill>
+                  <StatusPill tone="mint">{device.trustState}</StatusPill>
                 </div>
-                <div className="mt-3 flex gap-2">
-                  {device.trustState === "pending" ? (
-                    <button type="button" onClick={() => void approveDevice({ deviceId: device.id }).then(loadBootstrap)} className="rounded-full border border-[#98FFD5]/30 px-3 py-1 text-xs text-[#C8FFE9]">
-                      Approve
-                    </button>
-                  ) : null}
-                  {device.id !== state.currentDeviceId ? (
-                    <button type="button" onClick={() => void revokeDevice({ deviceId: device.id }).then(loadBootstrap)} className="rounded-full border border-[#FF7A6E]/30 px-3 py-1 text-xs text-[#FFD1CB]">
-                      Revoke
-                    </button>
-                  ) : null}
-                </div>
+                {currentDevice?.id === device.id ? <p className="mt-3 text-xs text-white/50">Active on {session?.user?.email}</p> : null}
               </div>
             ))}
           </div>

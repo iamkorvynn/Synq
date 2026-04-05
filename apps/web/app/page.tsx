@@ -22,7 +22,7 @@ export default function HomePage() {
               Enter the vault
             </a>
             <span className="rounded-full border border-white/12 px-6 py-3 text-white/70">
-              Passkeys by default
+              Google invite auth
             </span>
             <span className="rounded-full border border-white/12 px-6 py-3 text-white/70">
               Web + PWA launch

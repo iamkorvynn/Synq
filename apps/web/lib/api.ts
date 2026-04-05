@@ -2,73 +2,38 @@
 
 import type {
   AIActionRequest,
-  AttachmentFinalizeRequest,
-  AttachmentSignRequest,
-  AttachmentUploadRequest,
   Device,
   DeviceApprovalRequest,
   DeviceRevokeRequest,
   MessageEnvelope,
-  OnboardingRequest,
-  PasskeyChallenge,
-  PasskeyChallengeRequest,
-  PasskeyVerifyRequest,
-  PasskeyVerifyResponse,
   RealtimeEnvelope,
-  SendMessageRequest,
-  Session,
   SynqBootstrapState,
+  AttachmentFinalizeRequest,
+  AttachmentSignRequest,
+  AttachmentUploadRequest,
+  OnboardingRequest,
+  SendMessageRequest,
 } from "@synq/protocol";
 
-import {
-  clearStoredSession,
-  getAccessToken,
-  getRefreshToken,
-  setStoredSession,
-} from "./auth-session";
+function getApiBaseUrl() {
+  return process.env.NEXT_PUBLIC_API_URL ?? "/api/synq";
+}
 
-const API_URL = process.env.NEXT_PUBLIC_API_URL ?? "http://localhost:4000";
+function buildHttpUrl(path: string) {
+  const baseUrl = getApiBaseUrl();
+  return `${baseUrl}${path}`;
+}
 
-async function request<T>(
-  path: string,
-  init?: RequestInit,
-  retryOnUnauthorized = true,
-): Promise<T> {
-  const accessToken = getAccessToken();
-  const response = await fetch(`${API_URL}${path}`, {
+async function request<T>(path: string, init?: RequestInit): Promise<T> {
+  const response = await fetch(buildHttpUrl(path), {
     ...init,
     headers: {
       "Content-Type": "application/json",
-      ...(accessToken ? { Authorization: `Bearer ${accessToken}` } : {}),
       ...(init?.headers ?? {}),
     },
     cache: "no-store",
+    credentials: "include",
   });
-
-  if (response.status === 401 && retryOnUnauthorized) {
-    const refreshToken = getRefreshToken();
-    if (!refreshToken) {
-      clearStoredSession();
-      throw new Error(`Unauthorized for ${path}`);
-    }
-
-    const refreshed = await fetch(`${API_URL}/auth/session/refresh`, {
-      method: "POST",
-      headers: {
-        "Content-Type": "application/json",
-      },
-      body: JSON.stringify({ refreshToken }),
-    });
-
-    if (!refreshed.ok) {
-      clearStoredSession();
-      throw new Error(`Unauthorized for ${path}`);
-    }
-
-    const session = (await refreshed.json()) as Session;
-    setStoredSession(session);
-    return request<T>(path, init, false);
-  }
 
   if (!response.ok) {
     throw new Error(`Request failed for ${path}`);
@@ -112,24 +77,8 @@ export async function runAIAction(payload: AIActionRequest) {
   });
 }
 
-export async function createPasskeyChallenge(
-  payload: PasskeyChallengeRequest,
-) {
-  return request<PasskeyChallenge>("/auth/passkey/challenge", {
-    method: "POST",
-    body: JSON.stringify(payload),
-  });
-}
-
-export async function verifyPasskey(payload: PasskeyVerifyRequest) {
-  return request<PasskeyVerifyResponse>("/auth/passkey/verify", {
-    method: "POST",
-    body: JSON.stringify(payload),
-  });
-}
-
 export async function completeOnboarding(payload: OnboardingRequest) {
-  return request("/auth/onboarding", {
+  return request("/onboarding", {
     method: "POST",
     body: JSON.stringify(payload),
   });
@@ -194,19 +143,17 @@ export function connectRealtime(
   onEvent: (event: RealtimeEnvelope) => void,
   onOpen?: () => void,
 ) {
-  const accessToken = getAccessToken();
-  const socket = new WebSocket(
-    `${API_URL.replace(/^http/, "ws")}/realtime?accessToken=${encodeURIComponent(accessToken ?? "")}`,
-  );
-
-  socket.addEventListener("open", () => {
+  queueMicrotask(() => {
     onOpen?.();
+    onEvent({
+      type: "session.ready",
+      payload: {
+        pendingApproval: false,
+      },
+    });
   });
 
-  socket.addEventListener("message", (event) => {
-    const payload = JSON.parse(event.data) as RealtimeEnvelope;
-    onEvent(payload);
-  });
-
-  return socket;
+  return {
+    close() {},
+  } as Pick<WebSocket, "close">;
 }
