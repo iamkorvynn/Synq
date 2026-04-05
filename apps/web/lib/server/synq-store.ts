@@ -311,6 +311,66 @@ function createSharedSeedState() {
   });
 }
 
+function isRecord(value: unknown): value is Record<string, unknown> {
+  return typeof value === "object" && value !== null && !Array.isArray(value);
+}
+
+function pickArray<T>(value: unknown, fallback: T[]) {
+  return Array.isArray(value) ? value : fallback;
+}
+
+function hydratePersistedState(raw: unknown) {
+  const seed = createSharedSeedState();
+
+  if (!isRecord(raw)) {
+    return seed;
+  }
+
+  const candidate = raw as Record<string, unknown>;
+
+  return SynqBootstrapStateSchema.parse({
+    ...seed,
+    currentUserId:
+      typeof candidate.currentUserId === "string"
+        ? candidate.currentUserId
+        : seed.currentUserId,
+    currentDeviceId:
+      typeof candidate.currentDeviceId === "string"
+        ? candidate.currentDeviceId
+        : seed.currentDeviceId,
+    activeSession: isRecord(candidate.activeSession)
+      ? {
+          ...seed.activeSession,
+          ...candidate.activeSession,
+        }
+      : seed.activeSession,
+    users: pickArray(candidate.users, seed.users),
+    recoveryMethods: pickArray(candidate.recoveryMethods, seed.recoveryMethods),
+    devices: pickArray(candidate.devices, seed.devices),
+    passkeys: pickArray(candidate.passkeys, seed.passkeys),
+    deviceApprovals: pickArray(candidate.deviceApprovals, seed.deviceApprovals),
+    workspacePolicies: pickArray(candidate.workspacePolicies, seed.workspacePolicies),
+    workspaces: pickArray(candidate.workspaces, seed.workspaces),
+    circles: pickArray(candidate.circles, seed.circles),
+    conversations: pickArray(candidate.conversations, seed.conversations),
+    channels: pickArray(candidate.channels, seed.channels),
+    attachmentObjects: pickArray(candidate.attachmentObjects, seed.attachmentObjects),
+    messages: pickArray(candidate.messages, seed.messages),
+    pinnedMessages: pickArray(candidate.pinnedMessages, seed.pinnedMessages),
+    conversationMemberships: pickArray(
+      candidate.conversationMemberships,
+      seed.conversationMemberships,
+    ),
+    typingIndicators: pickArray(candidate.typingIndicators, seed.typingIndicators),
+    blockRecords: pickArray(candidate.blockRecords, seed.blockRecords),
+    reports: pickArray(candidate.reports, seed.reports),
+    moderationLogs: pickArray(candidate.moderationLogs, seed.moderationLogs),
+    presence: pickArray(candidate.presence, seed.presence),
+    auditEvents: pickArray(candidate.auditEvents, seed.auditEvents),
+    disappearingJobs: pickArray(candidate.disappearingJobs, seed.disappearingJobs),
+  });
+}
+
 function stripSeededArtifacts(state: SynqBootstrapState) {
   const nextState = structuredClone(state);
   const seededUserIds = new Set(
@@ -660,7 +720,20 @@ async function loadState() {
       return seed;
     }
 
-    const parsed = SynqBootstrapStateSchema.parse(result.rows[0].state);
+    let parsed: SynqBootstrapState;
+
+    try {
+      parsed = hydratePersistedState(result.rows[0].state);
+    } catch (error) {
+      const reset = createSharedSeedState();
+      console.error("[synq-store] Failed to hydrate persisted state. Resetting.", error);
+      await client.query(
+        "UPDATE synq_app_state SET state = $2::jsonb, updated_at = NOW() WHERE id = $1",
+        [STORE_ROW_ID, JSON.stringify(reset)],
+      );
+      return reset;
+    }
+
     const sanitized = stripSeededArtifacts(parsed);
 
     if (JSON.stringify(parsed) !== JSON.stringify(sanitized)) {

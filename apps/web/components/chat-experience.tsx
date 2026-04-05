@@ -32,6 +32,7 @@ import {
   deleteAccount,
   deleteMessage,
   editMessage,
+  fetchAuthDebug,
   fetchBootstrap,
   finalizeAttachment,
   findContacts,
@@ -102,6 +103,8 @@ function toneLabel(conversation: Conversation) {
 function describeAuthError(code: string | null) {
   if (!code) return "";
   if (code === "AccessDenied") return "This Google account cannot open Synq right now.";
+  if (code === "EnvConflict")
+    return "Synq found conflicting auth env vars. Keep only one Google OAuth pair, and make AUTH_SECRET and NEXTAUTH_SECRET identical.";
   if (code === "Configuration")
     return "Google auth is not configured yet. Add AUTH_SECRET, AUTH_GOOGLE_ID, and AUTH_GOOGLE_SECRET in Vercel, or use NEXTAUTH_SECRET, GOOGLE_CLIENT_ID, and GOOGLE_CLIENT_SECRET.";
   return "Synq could not complete sign-in with Google.";
@@ -381,6 +384,25 @@ export function ChatExperience() {
 
     void loadBootstrap();
   }, [authErrorCode, status, session?.user?.email]);
+
+  useEffect(() => {
+    if (status !== "unauthenticated" || !authErrorCode) {
+      return;
+    }
+
+    if (authErrorCode !== "Configuration" && authErrorCode !== "EnvConflict") {
+      return;
+    }
+
+    void fetchAuthDebug().then((debug) => {
+      if (!debug?.hints?.length) {
+        return;
+      }
+
+      const message = debug.hints.join(" ");
+      setAuthError(message);
+    });
+  }, [authErrorCode, status]);
 
   useEffect(() => {
     if (!selectedConversation) return;

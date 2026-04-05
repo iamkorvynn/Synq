@@ -1,6 +1,8 @@
 import NextAuth from "next-auth";
 import Google from "next-auth/providers/google";
 
+type GoogleSource = "authjs" | "legacy" | "missing";
+
 function parseCsv(value: string | undefined) {
   return (value ?? "")
     .split(",")
@@ -8,26 +10,102 @@ function parseCsv(value: string | undefined) {
     .filter(Boolean);
 }
 
+function readEnv(name: string) {
+  const value = process.env[name]?.trim();
+  return value ? value : undefined;
+}
+
+function getAuthConfigSnapshot() {
+  const authGoogleId = readEnv("AUTH_GOOGLE_ID");
+  const authGoogleSecret = readEnv("AUTH_GOOGLE_SECRET");
+  const legacyGoogleId = readEnv("GOOGLE_CLIENT_ID");
+  const legacyGoogleSecret = readEnv("GOOGLE_CLIENT_SECRET");
+  const authSecret = readEnv("AUTH_SECRET");
+  const nextAuthSecret = readEnv("NEXTAUTH_SECRET");
+
+  const authGooglePair =
+    authGoogleId && authGoogleSecret
+      ? {
+          source: "authjs" as const,
+          clientId: authGoogleId,
+          clientSecret: authGoogleSecret,
+        }
+      : null;
+  const legacyGooglePair =
+    legacyGoogleId && legacyGoogleSecret
+      ? {
+          source: "legacy" as const,
+          clientId: legacyGoogleId,
+          clientSecret: legacyGoogleSecret,
+        }
+      : null;
+  const preferredGoogleSource = readEnv("GOOGLE_AUTH_SOURCE");
+  const googleConfig =
+    preferredGoogleSource === "legacy"
+      ? legacyGooglePair ?? authGooglePair
+      : preferredGoogleSource === "authjs"
+        ? authGooglePair ?? legacyGooglePair
+        : authGooglePair ?? legacyGooglePair;
+
+  const activeGoogleSource: GoogleSource = googleConfig?.source ?? "missing";
+  const resolvedAuthSecret = authSecret ?? nextAuthSecret;
+  const googleIdsMatch =
+    !authGoogleId || !legacyGoogleId ? null : authGoogleId === legacyGoogleId;
+  const googleSecretsMatch =
+    !authGoogleSecret || !legacyGoogleSecret
+      ? null
+      : authGoogleSecret === legacyGoogleSecret;
+  const authSecretsMatch =
+    !authSecret || !nextAuthSecret ? null : authSecret === nextAuthSecret;
+  const hints: string[] = [];
+
+  if (!resolvedAuthSecret) {
+    hints.push("Add AUTH_SECRET or NEXTAUTH_SECRET.");
+  } else if (authSecretsMatch === false) {
+    hints.push("AUTH_SECRET and NEXTAUTH_SECRET differ. Make them identical.");
+  }
+
+  if (!googleConfig) {
+    hints.push(
+      "Add one complete Google OAuth pair: AUTH_GOOGLE_ID + AUTH_GOOGLE_SECRET or GOOGLE_CLIENT_ID + GOOGLE_CLIENT_SECRET.",
+    );
+  } else if (googleIdsMatch === false || googleSecretsMatch === false) {
+    hints.push(
+      "Two different Google OAuth env pairs are set. Keep only one pair, or set GOOGLE_AUTH_SOURCE to the pair you want to use.",
+    );
+  }
+
+  return {
+    authSecret: resolvedAuthSecret,
+    googleConfig,
+    preferredGoogleSource,
+    sources: {
+      activeGoogleSource,
+      authSecretSource: authSecret
+        ? "AUTH_SECRET"
+        : nextAuthSecret
+          ? "NEXTAUTH_SECRET"
+          : "missing",
+    },
+    consistency: {
+      googleIdsMatch,
+      googleSecretsMatch,
+      authSecretsMatch,
+      authGooglePairReady: Boolean(authGooglePair),
+      legacyGooglePairReady: Boolean(legacyGooglePair),
+    },
+    configured: {
+      authSecret: Boolean(resolvedAuthSecret),
+      googleClientId: Boolean(authGoogleId || legacyGoogleId),
+      googleClientSecret: Boolean(authGoogleSecret || legacyGoogleSecret),
+    },
+    hints,
+  };
+}
+
 const allowedEmails = new Set(parseCsv(process.env.SYNQ_INVITE_EMAILS));
 const allowedDomains = new Set(parseCsv(process.env.SYNQ_INVITE_DOMAINS));
-const authGooglePair =
-  process.env.AUTH_GOOGLE_ID && process.env.AUTH_GOOGLE_SECRET
-    ? {
-        source: "authjs" as const,
-        clientId: process.env.AUTH_GOOGLE_ID,
-        clientSecret: process.env.AUTH_GOOGLE_SECRET,
-      }
-    : null;
-const legacyGooglePair =
-  process.env.GOOGLE_CLIENT_ID && process.env.GOOGLE_CLIENT_SECRET
-    ? {
-        source: "legacy" as const,
-        clientId: process.env.GOOGLE_CLIENT_ID,
-        clientSecret: process.env.GOOGLE_CLIENT_SECRET,
-      }
-    : null;
-const googleConfig = authGooglePair ?? legacyGooglePair;
-const authSecret = process.env.AUTH_SECRET ?? process.env.NEXTAUTH_SECRET;
+const authConfig = getAuthConfigSnapshot();
 
 function isInvited(email: string) {
   if (!allowedEmails.size && !allowedDomains.size) {
@@ -42,7 +120,7 @@ function isInvited(email: string) {
 
 export const { handlers, auth, signIn, signOut } = NextAuth({
   trustHost: true,
-  secret: authSecret,
+  secret: authConfig.authSecret,
   session: {
     strategy: "jwt",
   },
@@ -51,14 +129,22 @@ export const { handlers, auth, signIn, signOut } = NextAuth({
     error: "/chat",
   },
   providers:
-    googleConfig
+    authConfig.googleConfig
       ? [
           Google({
-            clientId: googleConfig.clientId,
-            clientSecret: googleConfig.clientSecret,
+            clientId: authConfig.googleConfig.clientId,
+            clientSecret: authConfig.googleConfig.clientSecret,
           }),
         ]
       : [],
+  logger: {
+    error(code, ...message) {
+      console.error("[synq-auth]", code, ...message);
+    },
+    warn(code, ...message) {
+      console.warn("[synq-auth]", code, ...message);
+    },
+  },
   callbacks: {
     async signIn({ user }) {
       if (!user.email) {
@@ -89,3 +175,5 @@ export const { handlers, auth, signIn, signOut } = NextAuth({
     },
   },
 });
+
+export { getAuthConfigSnapshot };

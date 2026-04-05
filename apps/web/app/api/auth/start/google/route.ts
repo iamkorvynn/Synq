@@ -1,5 +1,7 @@
 import { NextRequest, NextResponse } from "next/server";
 
+import { getAuthConfigSnapshot } from "@/auth";
+
 export const runtime = "nodejs";
 export const dynamic = "force-dynamic";
 
@@ -23,6 +25,19 @@ function joinCookies(...cookieSets: string[][]) {
 export async function GET(request: NextRequest) {
   const origin = new URL(request.url).origin;
   const callbackUrl = `${origin}/chat`;
+  const authConfig = getAuthConfigSnapshot();
+
+  if (!authConfig.authSecret || !authConfig.googleConfig) {
+    return NextResponse.redirect(`${callbackUrl}?error=Configuration`);
+  }
+
+  if (
+    authConfig.consistency.googleIdsMatch === false ||
+    authConfig.consistency.googleSecretsMatch === false ||
+    authConfig.consistency.authSecretsMatch === false
+  ) {
+    return NextResponse.redirect(`${callbackUrl}?error=EnvConflict`);
+  }
 
   const csrfResponse = await fetch(`${origin}/api/auth/csrf`, {
     method: "GET",

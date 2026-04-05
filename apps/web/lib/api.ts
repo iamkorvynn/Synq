@@ -26,6 +26,32 @@ import type {
   SendMessageRequest,
 } from "@synq/protocol";
 
+export type AuthDebugState = {
+  ok: boolean;
+  configured: {
+    authSecret: boolean;
+    googleClientId: boolean;
+    googleClientSecret: boolean;
+    postgresUrl: boolean;
+  };
+  sources: {
+    activeGoogleSource: "authjs" | "legacy" | "missing";
+    authSecretSource: string;
+  };
+  consistency: {
+    googleIdsMatch: boolean | null;
+    googleSecretsMatch: boolean | null;
+    authSecretsMatch: boolean | null;
+    authGooglePairReady: boolean;
+    legacyGooglePairReady: boolean;
+  };
+  hints: string[];
+  session: {
+    email: string;
+    name: string;
+  } | null;
+};
+
 function getApiBaseUrl() {
   return process.env.NEXT_PUBLIC_API_URL ?? "/api/synq";
 }
@@ -56,6 +82,25 @@ async function request<T>(path: string, init?: RequestInit): Promise<T> {
 export async function fetchBootstrap() {
   try {
     return await request<SynqBootstrapState>("/bootstrap");
+  } catch {
+    return null;
+  }
+}
+
+export async function fetchAuthDebug() {
+  const endpoint = `${process.env.NEXT_PUBLIC_API_URL ?? "/api"}/auth/debug`;
+
+  try {
+    const response = await fetch(endpoint, {
+      cache: "no-store",
+      credentials: "include",
+    });
+
+    if (!response.ok) {
+      throw new Error("Auth debug unavailable");
+    }
+
+    return (await response.json()) as AuthDebugState;
   } catch {
     return null;
   }
