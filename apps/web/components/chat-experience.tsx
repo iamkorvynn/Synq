@@ -96,7 +96,12 @@ type SpaceNavItem = {
   unreadCount: number;
 };
 
-const QUICK_REACTIONS = ["ðŸ‘", "ðŸ”¥", "ðŸ«¶", "ðŸ‘€"];
+const QUICK_REACTIONS = [
+  "\u{1F44D}",
+  "\u{1F525}",
+  "\u{1FAF6}",
+  "\u{1F440}",
+];
 const DOCK_TABS: Array<{ id: DockTab; label: string; caption: string }> = [
   { id: "memory", label: "Memory", caption: "Context and pinned signals" },
   { id: "safety", label: "Safety", caption: "Devices, reports, and account controls" },
@@ -361,6 +366,43 @@ function renderDockTabIcon(tab: DockTab) {
   if (tab === "memory") return <MemoryIcon />;
   if (tab === "safety") return <SafetyIcon />;
   return <AIIcon />;
+}
+
+function MiniDockOrb({
+  tone = "sealed",
+  active = false,
+}: {
+  tone?: "sealed" | "managed" | "broadcast";
+  active?: boolean;
+}) {
+  const coreColor =
+    tone === "broadcast" ? "#FF8B78" : tone === "managed" ? "#98FFD5" : "#5DE4FF";
+  const haloColor = tone === "broadcast" ? "#5DE4FF" : "#A58BFF";
+
+  return (
+    <div
+      className={cx(
+        "relative flex h-12 w-12 items-center justify-center overflow-hidden rounded-[18px] border transition",
+        active
+          ? "border-[#5DE4FF]/32 bg-white/[0.05] shadow-[0_14px_28px_rgba(7,16,26,0.24)]"
+          : "border-white/10 bg-white/[0.03]",
+      )}
+    >
+      <div
+        className="absolute inset-2 rounded-full blur-[1px]"
+        style={{
+          background: `radial-gradient(circle, ${coreColor}dd, ${coreColor}25 58%, transparent 72%)`,
+        }}
+      />
+      <div
+        className="absolute inset-1 rounded-full blur-lg"
+        style={{
+          background: `radial-gradient(circle, ${haloColor}38, transparent 70%)`,
+        }}
+      />
+      <div className="relative h-6 w-6 rounded-full border border-white/10 bg-white/10" />
+    </div>
+  );
 }
 
 function renderSpaceIcon(space: SpaceNavItem) {
@@ -2073,8 +2115,8 @@ export function ChatExperience() {
           <div className="flex items-start justify-between gap-4">
             <div className="min-w-0">
               <SectionLabel>Signal inbox</SectionLabel>
-              <h2 className="mt-2 truncate text-xl font-semibold text-white">{selectedSpace.name}</h2>
-              <p className="mt-1 text-sm leading-6 text-white/52">
+              <h2 className="mt-1 truncate text-lg font-semibold text-white">{selectedSpace.name}</h2>
+              <p className="mt-1 text-sm leading-5 text-white/50">
                 {selectedSpace.kind === "direct"
                   ? "Private threads you explicitly start."
                   : selectedSpace.caption}
@@ -2089,43 +2131,36 @@ export function ChatExperience() {
               </span>
             </div>
           </div>
-          <div className="mt-5 grid grid-cols-1 gap-2 sm:grid-cols-3">
+          <div className="mt-3 grid grid-cols-3 gap-2">
             {spaceItems.map((space) => (
               <button
                 key={`inbox-space-${space.id}`}
                 type="button"
+                title={space.name}
+                aria-label={space.name}
                 onClick={() => handleSelectWorkspace(space.id)}
                 className={cx(
-                  "rounded-[20px] border px-3 py-3 text-left transition",
+                  "relative flex h-12 items-center justify-center rounded-[18px] border transition",
                   space.id === selectedWorkspaceId
-                    ? "border-[#5DE4FF]/32 bg-[linear-gradient(135deg,rgba(93,228,255,0.14),rgba(255,122,110,0.08))] text-white"
+                    ? "border-[#5DE4FF]/32 bg-[linear-gradient(135deg,rgba(93,228,255,0.14),rgba(255,122,110,0.08))] text-white shadow-[0_12px_22px_rgba(7,16,26,0.18)]"
                     : "border-white/8 bg-white/[0.03] text-white/74 hover:border-white/14 hover:bg-white/[0.05] hover:text-white",
                 )}
               >
-                <div className="flex items-center gap-3">
-                  <div className="synq-sigil flex h-10 w-10 shrink-0 items-center justify-center rounded-[16px] border border-white/10 text-white">
-                    {renderSpaceIcon(space)}
-                  </div>
-                  <div className="min-w-0 flex-1">
-                    <div className="flex items-center justify-between gap-3">
-                      <span className="truncate text-sm font-medium">{space.name}</span>
-                      {space.unreadCount ? (
-                        <span className="rounded-full bg-[#FF7A6E] px-2 py-1 text-[11px] font-semibold text-[#071019]">
-                          {space.unreadCount}
-                        </span>
-                      ) : null}
-                    </div>
-                    <p className="mt-1 truncate text-xs text-current/65">{space.caption}</p>
-                  </div>
-                </div>
+                <span className="text-white">{renderSpaceIcon(space)}</span>
+                <span className="sr-only">{space.name}</span>
+                {space.unreadCount ? (
+                  <span className="absolute right-1.5 top-1.5 rounded-full bg-[#FF7A6E] px-1.5 py-[2px] text-[10px] font-semibold leading-none text-[#071019]">
+                    {space.unreadCount}
+                  </span>
+                ) : null}
               </button>
             ))}
           </div>
-          <div className="mt-5 rounded-[24px] border border-white/7 bg-black/12 p-3">
+          <div className="mt-3 rounded-[22px] border border-white/7 bg-black/12 p-2.5">
             <div className="flex items-center justify-between gap-3">
               <div>
                 <p className="text-sm font-medium text-white">Room actions</p>
-                <p className="mt-1 text-xs text-white/46">
+                <p className="mt-0.5 text-xs text-white/42">
                   Create a new room or join one with a code.
                 </p>
               </div>
@@ -2200,7 +2235,7 @@ export function ChatExperience() {
               )}
             </AnimatePresence>
           </div>
-          <div className="synq-scroll mt-4 min-h-0 flex-1 space-y-3 overflow-y-auto pr-1">
+          <div className="synq-scroll mt-3 min-h-0 flex-1 space-y-3 overflow-y-auto pr-1">
             {visibleConversations.length ? (
               visibleConversations.map((conversation) => (
                 <motion.button
@@ -2824,22 +2859,44 @@ export function ChatExperience() {
                 <div className="flex h-12 w-12 items-center justify-center rounded-[18px] border border-white/10 bg-[linear-gradient(145deg,rgba(93,228,255,0.14),rgba(255,122,110,0.14))] text-white shadow-[0_16px_30px_rgba(7,16,26,0.24)]">
                   <DockToggleIcon collapsed={false} />
                 </div>
-                {DOCK_TABS.map((tab) => (
-                  <button
-                    key={`collapsed-${tab.id}`}
-                    type="button"
-                    title={tab.label}
-                    aria-label={`Open ${tab.label} dock tab`}
-                    data-active={activeDockTab === tab.id}
-                    onClick={() => {
-                      setActiveDockTab(tab.id);
-                      setIsDockCollapsed(false);
-                    }}
-                    className="synq-tab flex h-12 w-12 items-center justify-center rounded-[18px] text-white/78"
-                  >
-                    {renderDockTabIcon(tab.id)}
-                  </button>
-                ))}
+                <button
+                  type="button"
+                  title="Memory"
+                  aria-label="Open Memory dock tab"
+                  data-active={activeDockTab === "memory"}
+                  onClick={() => {
+                    setActiveDockTab("memory");
+                    setIsDockCollapsed(false);
+                  }}
+                  className="synq-tab flex h-12 w-12 items-center justify-center rounded-[18px] text-white/78"
+                >
+                  {renderDockTabIcon("memory")}
+                </button>
+                <button
+                  type="button"
+                  title="Expand dock"
+                  aria-label="Expand dock with live orb"
+                  onClick={() => setIsDockCollapsed(false)}
+                  className="rounded-[18px] text-white/78 transition"
+                >
+                  <MiniDockOrb
+                    tone={conversationTone(selectedConversation)}
+                    active={activeDockTab === "safety"}
+                  />
+                </button>
+                <button
+                  type="button"
+                  title="AI"
+                  aria-label="Open AI dock tab"
+                  data-active={activeDockTab === "ai"}
+                  onClick={() => {
+                    setActiveDockTab("ai");
+                    setIsDockCollapsed(false);
+                  }}
+                  className="synq-tab flex h-12 w-12 items-center justify-center rounded-[18px] text-white/78"
+                >
+                  {renderDockTabIcon("ai")}
+                </button>
               </div>
             ) : (
               <>
