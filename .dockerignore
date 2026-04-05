@@ -1,0 +1,13 @@
+node_modules
+apps/*/node_modules
+apps/*/.next
+apps/*/dist
+.git
+.github
+coverage
+npm-debug.log*
+.api-dev.log
+.api-dev.err.log
+.web-dev.log
+.web-dev.err.log
+.synq-storage

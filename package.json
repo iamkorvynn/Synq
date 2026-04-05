@@ -1,0 +1,19 @@
+{
+  "name": "synq",
+  "version": "0.1.0",
+  "private": true,
+  "workspaces": [
+    "apps/*",
+    "packages/*"
+  ],
+  "scripts": {
+    "dev": "concurrently -n web,api -c cyan,magenta \"npm run dev --workspace @synq/web\" \"npm run dev --workspace @synq/api\"",
+    "build": "npm run build --workspaces --if-present",
+    "test": "npm run test --workspaces --if-present"
+  },
+  "devDependencies": {
+    "concurrently": "^9.2.1",
+    "typescript": "^5.8.3",
+    "vitest": "^3.2.4"
+  }
+}

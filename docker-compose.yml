@@ -1,0 +1,67 @@
+services:
+  api:
+    build:
+      context: .
+      dockerfile: apps/api/Dockerfile
+    restart: unless-stopped
+    depends_on:
+      - postgres
+    environment:
+      SYNQ_API_PORT: 4000
+      SYNQ_CORS_ORIGIN: http://localhost:3000
+      SYNQ_STORE_DRIVER: postgres
+      SYNQ_POSTGRES_URL: postgresql://postgres:postgres@postgres:5432/synq
+      SYNQ_STORAGE_DIR: /data/synq-storage
+      SYNQ_LOG_LEVEL: info
+    ports:
+      - "4000:4000"
+    volumes:
+      - synqstorage:/data/synq-storage
+
+  web:
+    build:
+      context: .
+      dockerfile: apps/web/Dockerfile
+    restart: unless-stopped
+    depends_on:
+      - api
+    environment:
+      NEXT_PUBLIC_API_URL: http://localhost:4000
+    ports:
+      - "3000:3000"
+
+  postgres:
+    image: postgres:16-alpine
+    restart: unless-stopped
+    environment:
+      POSTGRES_DB: synq
+      POSTGRES_USER: postgres
+      POSTGRES_PASSWORD: postgres
+    ports:
+      - "5432:5432"
+    volumes:
+      - pgdata:/var/lib/postgresql/data
+
+  redis:
+    image: redis:7-alpine
+    restart: unless-stopped
+    ports:
+      - "6379:6379"
+
+  minio:
+    image: minio/minio:latest
+    restart: unless-stopped
+    environment:
+      MINIO_ROOT_USER: synq
+      MINIO_ROOT_PASSWORD: synqsecure
+    command: server /data --console-address ":9001"
+    ports:
+      - "9000:9000"
+      - "9001:9001"
+    volumes:
+      - minio:/data
+
+volumes:
+  pgdata:
+  minio:
+  synqstorage:
