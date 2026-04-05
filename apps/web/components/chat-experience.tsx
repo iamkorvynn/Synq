@@ -1991,8 +1991,8 @@ export function ChatExperience() {
         className={cx(
           "grid gap-4 xl:h-full xl:min-h-0",
           isDockCollapsed
-            ? "xl:grid-cols-[260px_292px_minmax(0,1.45fr)_76px] 2xl:grid-cols-[272px_304px_minmax(0,1.65fr)_76px]"
-            : "xl:grid-cols-[260px_292px_minmax(0,1.35fr)_348px] 2xl:grid-cols-[272px_304px_minmax(0,1.55fr)_360px]",
+            ? "xl:grid-cols-[112px_292px_minmax(0,1.62fr)_76px] 2xl:grid-cols-[120px_304px_minmax(0,1.82fr)_76px]"
+            : "xl:grid-cols-[112px_292px_minmax(0,1.5fr)_348px] 2xl:grid-cols-[120px_304px_minmax(0,1.72fr)_360px]",
         )}
       >
         <motion.aside
@@ -2000,45 +2000,39 @@ export function ChatExperience() {
           transition={reduceMotion ? undefined : motionTokens.spring}
           className="relative hidden xl:block xl:h-full xl:min-h-0"
         >
-          <GlassCard className="p-5">
-            <SectionLabel>Identity</SectionLabel>
-            <div className="mt-4 flex items-start gap-4 pr-12">
-              <div className="synq-sigil flex h-16 w-16 shrink-0 items-center justify-center rounded-[22px] border border-white/10 text-lg font-semibold text-white">
-                {displayAvatar(currentUser)}
-              </div>
-              <div className="min-w-0 flex-1">
-                <div className="flex flex-wrap items-center gap-2">
-                  <p className="truncate text-lg font-semibold text-white">
-                    {displayIdentity(currentUser)}
-                  </p>
-                  {currentUser?.ghostMode ? (
-                    <StatusPill tone="mint" className="text-[10px] tracking-[0.16em]">
-                      STEALTH
-                    </StatusPill>
-                  ) : null}
-                </div>
-                <p className="mt-2 text-sm leading-6 text-white/56">
-                  {currentUser?.bio || "Quiet by default. Ready for private signals."}
-                </p>
-              </div>
-            </div>
+          <GlassCard className="flex h-full min-h-0 flex-col items-center p-3">
             <button
               type="button"
               onClick={() => handleOpenProfileDock()}
-              className="absolute right-5 top-5 rounded-full border border-white/10 bg-white/[0.04] p-2 text-white/72 transition hover:border-white/18 hover:text-white"
+              className="self-end rounded-full border border-white/10 bg-white/[0.04] p-2 text-white/72 transition hover:border-white/18 hover:text-white"
               aria-label="Open profile panel"
             >
               <ProfilePanelIcon />
             </button>
 
-            <div className="mt-6 border-t border-white/8 pt-4">
-              <p className="text-xs text-white/38">
-                Sync {connectionLabel} | {queueCount} queued
+            <div className="mt-5 flex flex-1 flex-col items-center text-center">
+              <div className="synq-sigil flex h-16 w-16 items-center justify-center rounded-[22px] border border-white/10 text-lg font-semibold text-white">
+                {displayAvatar(currentUser)}
+              </div>
+              <p className="mt-4 w-full truncate text-sm font-semibold text-white">
+                {displayIdentity(currentUser)}
               </p>
+              {currentUser?.ghostMode ? (
+                <StatusPill tone="mint" className="mt-3 text-[10px] tracking-[0.16em]">
+                  STEALTH
+                </StatusPill>
+              ) : null}
+              <p className="mt-4 text-xs leading-6 text-white/42">
+                {queueCount} queued
+              </p>
+            </div>
+
+            <div className="mt-4 w-full border-t border-white/8 pt-3">
+              <p className="text-center text-[11px] text-white/34">{connectionLabel}</p>
               <button
                 type="button"
                 onClick={() => void signOut({ callbackUrl: "/chat" })}
-                className="mt-3 text-sm text-white/56 transition hover:text-white/82"
+                className="mt-3 w-full rounded-full border border-white/10 px-3 py-2.5 text-sm text-white/56 transition hover:border-white/18 hover:text-white/82"
               >
                 Sign out
               </button>
@@ -2759,14 +2753,14 @@ export function ChatExperience() {
                   void handleSend();
                 }
               }}
-              rows={3}
+              rows={2}
               placeholder={
                 selectedConversation
                   ? "Write a signal, search memory, or leave a reply..."
                   : "Pick a room to start chatting."
               }
               disabled={!selectedConversation}
-              className="w-full rounded-[26px] border border-white/10 bg-white/[0.04] px-4 py-3 text-sm leading-6 text-white outline-none placeholder:text-white/35"
+              className="w-full rounded-[24px] border border-white/10 bg-white/[0.04] px-4 py-2.5 text-sm leading-5 text-white outline-none placeholder:text-white/35"
             />
             {composerError ? (
               <div className="mt-3 rounded-[18px] border border-[#FF7A6E]/25 bg-[#FF7A6E]/10 px-3 py-2 text-sm text-[#FFD1CB]">
@@ -2856,9 +2850,21 @@ export function ChatExperience() {
             </div>
             {isDockCollapsed ? (
               <div className="mt-2 flex flex-1 flex-col items-center gap-3">
-                <div className="flex h-12 w-12 items-center justify-center rounded-[18px] border border-white/10 bg-[linear-gradient(145deg,rgba(93,228,255,0.14),rgba(255,122,110,0.14))] text-white shadow-[0_16px_30px_rgba(7,16,26,0.24)]">
-                  <DockToggleIcon collapsed={false} />
-                </div>
+                <button
+                  type="button"
+                  title="Expand dock"
+                  aria-label="Expand dock with live orb"
+                  onClick={() => {
+                    setActiveDockTab("memory");
+                    setIsDockCollapsed(false);
+                  }}
+                  className="rounded-[18px] text-white/78 transition"
+                >
+                  <MiniDockOrb
+                    tone={conversationTone(selectedConversation)}
+                    active
+                  />
+                </button>
                 <button
                   type="button"
                   title="Memory"
@@ -2874,15 +2880,16 @@ export function ChatExperience() {
                 </button>
                 <button
                   type="button"
-                  title="Expand dock"
-                  aria-label="Expand dock with live orb"
-                  onClick={() => setIsDockCollapsed(false)}
-                  className="rounded-[18px] text-white/78 transition"
+                  title="Safety"
+                  aria-label="Open Safety dock tab"
+                  data-active={activeDockTab === "safety"}
+                  onClick={() => {
+                    setActiveDockTab("safety");
+                    setIsDockCollapsed(false);
+                  }}
+                  className="synq-tab flex h-12 w-12 items-center justify-center rounded-[18px] text-white/78"
                 >
-                  <MiniDockOrb
-                    tone={conversationTone(selectedConversation)}
-                    active={activeDockTab === "safety"}
-                  />
+                  {renderDockTabIcon("safety")}
                 </button>
                 <button
                   type="button"
