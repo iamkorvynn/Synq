@@ -2129,7 +2129,7 @@ export function ChatExperience() {
               </button>
             ))}
           </div>
-          <div className="synq-scroll mt-4 min-h-0 flex-1 space-y-4 overflow-y-auto pr-1">
+          <div className="synq-scroll synq-scroll--subtle mt-4 min-h-0 flex-1 space-y-4 overflow-y-auto overscroll-contain pr-2">
             {activeDockTab === "memory" ? (
               <GlassCard className="p-4">
                 <div className="flex items-center justify-between">
