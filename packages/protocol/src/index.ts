@@ -24,6 +24,7 @@ export const conversationAIPolicyOverrideValues = [
   "disabled",
 ] as const;
 export const trustStateValues = ["verified", "watch", "ghost"] as const;
+export const profileVisibilityValues = ["full", "handle_only"] as const;
 export const deviceTrustStateValues = [
   "pending",
   "approved",
@@ -69,6 +70,7 @@ export type WorkspaceAIPolicy = (typeof workspaceAIPolicyValues)[number];
 export type ConversationAIPolicyOverride =
   (typeof conversationAIPolicyOverrideValues)[number];
 export type TrustState = (typeof trustStateValues)[number];
+export type ProfileVisibility = (typeof profileVisibilityValues)[number];
 export type DeviceTrustState = (typeof deviceTrustStateValues)[number];
 export type SessionScope = (typeof sessionScopeValues)[number];
 export type MessageProtection = (typeof messageProtectionValues)[number];
@@ -87,6 +89,7 @@ export const ConversationAIPolicyOverrideSchema = z.enum(
   conversationAIPolicyOverrideValues,
 );
 export const TrustStateSchema = z.enum(trustStateValues);
+export const ProfileVisibilitySchema = z.enum(profileVisibilityValues);
 export const DeviceTrustStateSchema = z.enum(deviceTrustStateValues);
 export const SessionScopeSchema = z.enum(sessionScopeValues);
 export const MessageProtectionSchema = z.enum(messageProtectionValues);
@@ -114,6 +117,9 @@ export const UserSchema = z.object({
   trustState: TrustStateSchema,
   aiPolicy: AIPolicySchema,
   ghostMode: z.boolean(),
+  profileVisibility: ProfileVisibilitySchema.default("full"),
+  hiddenAvatar: z.boolean().default(false),
+  privateDiscovery: z.boolean().default(false),
   onboardingComplete: z.boolean(),
   linkedPhone: z.string().optional(),
   linkedEmail: z.string().email().optional(),
@@ -228,6 +234,12 @@ export const AttachmentSchema = z.object({
   encryptedUrl: z.string().optional(),
 });
 
+export const MessageReactionSchema = z.object({
+  emoji: z.string(),
+  userId: z.string(),
+  createdAt: z.string(),
+});
+
 export const MessageEnvelopeSchema = z.object({
   id: z.string(),
   clientId: z.string().optional(),
@@ -240,6 +252,9 @@ export const MessageEnvelopeSchema = z.object({
   messageProtection: MessageProtectionSchema,
   mentions: z.array(z.string()).default([]),
   replyToId: z.string().optional(),
+  reactions: z.array(MessageReactionSchema).default([]),
+  editedAt: z.string().optional(),
+  deletedAt: z.string().optional(),
   attachments: z.array(AttachmentSchema).default([]),
 });
 
@@ -256,6 +271,9 @@ export const ConversationSchema = z.object({
   lastMessagePreview: z.string(),
   messageProtection: MessageProtectionSchema,
   aiPolicyOverride: ConversationAIPolicyOverrideSchema,
+  ownerUserId: z.string().optional(),
+  joinCode: z.string().optional(),
+  typingUserIds: z.array(z.string()).default([]),
   workspaceId: z.string().optional(),
 });
 
@@ -284,6 +302,58 @@ export const DisappearingMessageJobSchema = z.object({
   status: JobStatusSchema,
 });
 
+export const PinnedMessageSchema = z.object({
+  id: z.string(),
+  conversationId: z.string(),
+  messageId: z.string(),
+  pinnedByUserId: z.string(),
+  createdAt: z.string(),
+});
+
+export const ConversationMembershipSchema = z.object({
+  id: z.string(),
+  conversationId: z.string(),
+  userId: z.string(),
+  joinedAt: z.string(),
+  lastReadAt: z.string().optional(),
+  unreadCount: z.number(),
+});
+
+export const TypingIndicatorSchema = z.object({
+  conversationId: z.string(),
+  userId: z.string(),
+  expiresAt: z.string(),
+});
+
+export const BlockRecordSchema = z.object({
+  id: z.string(),
+  blockerUserId: z.string(),
+  blockedUserId: z.string(),
+  createdAt: z.string(),
+});
+
+export const ReportRecordSchema = z.object({
+  id: z.string(),
+  reporterUserId: z.string(),
+  targetUserId: z.string().optional(),
+  conversationId: z.string().optional(),
+  messageId: z.string().optional(),
+  reason: z.string(),
+  note: z.string().optional(),
+  createdAt: z.string(),
+});
+
+export const ModerationLogSchema = z.object({
+  id: z.string(),
+  actorUserId: z.string(),
+  targetUserId: z.string().optional(),
+  conversationId: z.string().optional(),
+  messageId: z.string().optional(),
+  action: z.string(),
+  createdAt: z.string(),
+  details: z.record(z.string()),
+});
+
 export const SynqBootstrapStateSchema = z.object({
   currentUserId: z.string(),
   currentDeviceId: z.string(),
@@ -300,6 +370,12 @@ export const SynqBootstrapStateSchema = z.object({
   channels: z.array(ChannelSchema),
   attachmentObjects: z.array(AttachmentObjectSchema),
   messages: z.array(MessageEnvelopeSchema),
+  pinnedMessages: z.array(PinnedMessageSchema),
+  conversationMemberships: z.array(ConversationMembershipSchema),
+  typingIndicators: z.array(TypingIndicatorSchema),
+  blockRecords: z.array(BlockRecordSchema),
+  reports: z.array(ReportRecordSchema),
+  moderationLogs: z.array(ModerationLogSchema),
   presence: z.array(PresenceSchema),
   auditEvents: z.array(AuditEventSchema),
   disappearingJobs: z.array(DisappearingMessageJobSchema),
@@ -317,11 +393,18 @@ export type Circle = z.infer<typeof CircleSchema>;
 export type Channel = z.infer<typeof ChannelSchema>;
 export type AttachmentObject = z.infer<typeof AttachmentObjectSchema>;
 export type Attachment = z.infer<typeof AttachmentSchema>;
+export type MessageReaction = z.infer<typeof MessageReactionSchema>;
 export type MessageEnvelope = z.infer<typeof MessageEnvelopeSchema>;
 export type Conversation = z.infer<typeof ConversationSchema>;
 export type Presence = z.infer<typeof PresenceSchema>;
 export type AuditEvent = z.infer<typeof AuditEventSchema>;
 export type DisappearingMessageJob = z.infer<typeof DisappearingMessageJobSchema>;
+export type PinnedMessage = z.infer<typeof PinnedMessageSchema>;
+export type ConversationMembership = z.infer<typeof ConversationMembershipSchema>;
+export type TypingIndicator = z.infer<typeof TypingIndicatorSchema>;
+export type BlockRecord = z.infer<typeof BlockRecordSchema>;
+export type ReportRecord = z.infer<typeof ReportRecordSchema>;
+export type ModerationLog = z.infer<typeof ModerationLogSchema>;
 export type SynqBootstrapState = z.infer<typeof SynqBootstrapStateSchema>;
 
 export const DeviceRegistrationRequestSchema = z.object({
@@ -350,8 +433,23 @@ export const ConversationCreateRequestSchema = z.object({
   subtitle: z.string().min(2),
   kind: ConversationKindSchema,
   visibility: VisibilitySchema,
-  participantIds: z.array(z.string()).min(1),
+  participantIds: z.array(z.string()).default([]),
+  participantHandles: z.array(z.string()).default([]),
+  workspaceId: z.string().optional(),
   disappearingSeconds: z.number().optional(),
+});
+
+export const ConversationJoinRequestSchema = z.object({
+  code: z.string().trim().min(4).max(16),
+});
+
+export const DirectConversationRequestSchema = z.object({
+  handle: z
+    .string()
+    .trim()
+    .min(3)
+    .max(24)
+    .regex(/^[a-z0-9_.-]+$/),
 });
 
 export const ChannelCreateRequestSchema = z.object({
@@ -418,6 +516,16 @@ export const DiscoveryQuerySchema = z.object({
   query: z.string().optional(),
 });
 
+export const ProfileUpdateRequestSchema = z.object({
+  name: z.string().min(2),
+  bio: z.string().max(180),
+  avatar: z.string().min(1).max(2),
+  ghostMode: z.boolean(),
+  profileVisibility: ProfileVisibilitySchema,
+  hiddenAvatar: z.boolean(),
+  privateDiscovery: z.boolean(),
+});
+
 export const SendMessageRequestSchema = z.object({
   clientId: z.string().optional(),
   conversationId: z.string(),
@@ -427,6 +535,24 @@ export const SendMessageRequestSchema = z.object({
   replyToId: z.string().optional(),
   messageProtection: MessageProtectionSchema,
   attachments: z.array(AttachmentSchema).default([]),
+});
+
+export const MessageReactionRequestSchema = z.object({
+  emoji: z.string().min(1).max(8),
+});
+
+export const MessagePinRequestSchema = z.object({
+  pinned: z.boolean().default(true),
+});
+
+export const MessageUpdateRequestSchema = z.object({
+  preview: z.string().trim().min(1).max(500).optional(),
+  ciphertext: z.string().optional(),
+  deleted: z.boolean().optional(),
+});
+
+export const ConversationTypingRequestSchema = z.object({
+  isTyping: z.boolean(),
 });
 
 export const PasskeyChallengeRequestSchema = z.object({
@@ -472,6 +598,9 @@ export const OnboardingRequestSchema = z.object({
     .max(24)
     .regex(/^[a-z0-9_.-]+$/),
   ghostMode: z.boolean(),
+  profileVisibility: ProfileVisibilitySchema.default("handle_only"),
+  hiddenAvatar: z.boolean().default(false),
+  privateDiscovery: z.boolean().default(false),
   recoveryMethods: z
     .array(
       z.object({
@@ -490,6 +619,27 @@ export const DeviceRevokeRequestSchema = z.object({
   deviceId: z.string(),
 });
 
+export const DeviceLabelUpdateRequestSchema = z.object({
+  deviceId: z.string(),
+  label: z.string().min(2).max(40),
+});
+
+export const BlockUserRequestSchema = z.object({
+  targetUserId: z.string(),
+});
+
+export const ReportCreateRequestSchema = z.object({
+  targetUserId: z.string().optional(),
+  conversationId: z.string().optional(),
+  messageId: z.string().optional(),
+  reason: z.string().min(3).max(120),
+  note: z.string().max(280).optional(),
+});
+
+export const AccountDeleteRequestSchema = z.object({
+  confirm: z.literal("DELETE MY ACCOUNT"),
+});
+
 export const RealtimeEnvelopeSchema = z.object({
   type: RealtimeEventTypeSchema,
   payload: z.record(z.any()),
@@ -502,6 +652,12 @@ export type HandleClaimRequest = z.infer<typeof HandleClaimRequestSchema>;
 export type WorkspaceCreateRequest = z.infer<typeof WorkspaceCreateRequestSchema>;
 export type ConversationCreateRequest = z.infer<
   typeof ConversationCreateRequestSchema
+>;
+export type ConversationJoinRequest = z.infer<
+  typeof ConversationJoinRequestSchema
+>;
+export type DirectConversationRequest = z.infer<
+  typeof DirectConversationRequestSchema
 >;
 export type ChannelCreateRequest = z.infer<typeof ChannelCreateRequestSchema>;
 export type AttachmentSignRequest = z.infer<typeof AttachmentSignRequestSchema>;
@@ -518,7 +674,14 @@ export type AttachmentSignResponse = z.infer<
   typeof AttachmentSignResponseSchema
 >;
 export type AIActionRequest = z.infer<typeof AIActionRequestSchema>;
+export type ProfileUpdateRequest = z.infer<typeof ProfileUpdateRequestSchema>;
 export type SendMessageRequest = z.infer<typeof SendMessageRequestSchema>;
+export type MessageReactionRequest = z.infer<typeof MessageReactionRequestSchema>;
+export type MessagePinRequest = z.infer<typeof MessagePinRequestSchema>;
+export type MessageUpdateRequest = z.infer<typeof MessageUpdateRequestSchema>;
+export type ConversationTypingRequest = z.infer<
+  typeof ConversationTypingRequestSchema
+>;
 export type PasskeyChallengeRequest = z.infer<
   typeof PasskeyChallengeRequestSchema
 >;
@@ -533,6 +696,12 @@ export type DeviceApprovalRequest = z.infer<
   typeof DeviceApprovalRequestSchema
 >;
 export type DeviceRevokeRequest = z.infer<typeof DeviceRevokeRequestSchema>;
+export type DeviceLabelUpdateRequest = z.infer<
+  typeof DeviceLabelUpdateRequestSchema
+>;
+export type BlockUserRequest = z.infer<typeof BlockUserRequestSchema>;
+export type ReportCreateRequest = z.infer<typeof ReportCreateRequestSchema>;
+export type AccountDeleteRequest = z.infer<typeof AccountDeleteRequestSchema>;
 export type RealtimeEnvelope = z.infer<typeof RealtimeEnvelopeSchema>;
 export type ReadinessResponse = z.infer<typeof ReadinessResponseSchema>;
 
@@ -584,6 +753,9 @@ export function createDemoState(): SynqBootstrapState {
       trustState: "verified",
       aiPolicy: "local",
       ghostMode: true,
+      profileVisibility: "handle_only",
+      hiddenAvatar: false,
+      privateDiscovery: false,
       onboardingComplete: true,
       linkedEmail: "numa@synq.local",
     },
@@ -597,6 +769,9 @@ export function createDemoState(): SynqBootstrapState {
       trustState: "verified",
       aiPolicy: "local",
       ghostMode: false,
+      profileVisibility: "full",
+      hiddenAvatar: false,
+      privateDiscovery: false,
       onboardingComplete: true,
     },
     {
@@ -609,6 +784,9 @@ export function createDemoState(): SynqBootstrapState {
       trustState: "watch",
       aiPolicy: "ephemeral_cloud",
       ghostMode: false,
+      profileVisibility: "full",
+      hiddenAvatar: false,
+      privateDiscovery: false,
       onboardingComplete: true,
       linkedPhone: "+91-00000-00000",
     },
@@ -765,6 +943,8 @@ export function createDemoState(): SynqBootstrapState {
       lastMessagePreview: "Encrypted message",
       messageProtection: "ratcheted",
       aiPolicyOverride: "local",
+      ownerUserId: currentUserId,
+      typingUserIds: [],
     },
     {
       id: "conv_group_core",
@@ -779,6 +959,9 @@ export function createDemoState(): SynqBootstrapState {
       lastMessagePreview: "Encrypted message",
       messageProtection: "sender_key",
       aiPolicyOverride: "local",
+      ownerUserId: currentUserId,
+      joinCode: "CORE01",
+      typingUserIds: [],
     },
     {
       id: "conv_workspace_launch",
@@ -792,6 +975,9 @@ export function createDemoState(): SynqBootstrapState {
       lastMessagePreview: "Pinned the final rollout deck and policy audit.",
       messageProtection: "managed_plaintext",
       aiPolicyOverride: "inherit",
+      ownerUserId: currentUserId,
+      joinCode: "LAUNCH",
+      typingUserIds: [],
       workspaceId: "ws_synq",
     },
     {
@@ -806,6 +992,9 @@ export function createDemoState(): SynqBootstrapState {
       lastMessagePreview: "Tonight we open the vault.",
       messageProtection: "managed_plaintext",
       aiPolicyOverride: "ephemeral_cloud",
+      ownerUserId: currentUserId,
+      joinCode: "GHOST1",
+      typingUserIds: [],
       workspaceId: "ws_ghost",
     },
   ];
@@ -856,6 +1045,7 @@ export function createDemoState(): SynqBootstrapState {
       status: "read",
       messageProtection: "ratcheted",
       mentions: [],
+      reactions: [],
       attachments: [],
     },
     {
@@ -869,6 +1059,7 @@ export function createDemoState(): SynqBootstrapState {
       status: "read",
       messageProtection: "ratcheted",
       mentions: [],
+      reactions: [],
       attachments: [],
     },
     {
@@ -882,6 +1073,7 @@ export function createDemoState(): SynqBootstrapState {
       status: "sent",
       messageProtection: "ratcheted",
       mentions: [],
+      reactions: [],
       attachments: [],
     },
     {
@@ -895,6 +1087,7 @@ export function createDemoState(): SynqBootstrapState {
       status: "sent",
       messageProtection: "sender_key",
       mentions: [currentUserId],
+      reactions: [],
       attachments: [],
     },
     {
@@ -908,6 +1101,7 @@ export function createDemoState(): SynqBootstrapState {
       status: "sent",
       messageProtection: "sender_key",
       mentions: [],
+      reactions: [],
       attachments: [],
     },
     {
@@ -921,6 +1115,7 @@ export function createDemoState(): SynqBootstrapState {
       status: "read",
       messageProtection: "managed_plaintext",
       mentions: [],
+      reactions: [],
       attachments: [],
     },
     {
@@ -934,6 +1129,7 @@ export function createDemoState(): SynqBootstrapState {
       status: "sent",
       messageProtection: "managed_plaintext",
       mentions: [],
+      reactions: [],
       attachments: [
         {
           id: "att_ghost_note",
@@ -1032,6 +1228,12 @@ export function createDemoState(): SynqBootstrapState {
     channels,
     attachmentObjects,
     messages,
+    pinnedMessages: [],
+    conversationMemberships: [],
+    typingIndicators: [],
+    blockRecords: [],
+    reports: [],
+    moderationLogs: [],
     presence,
     auditEvents,
     disappearingJobs,

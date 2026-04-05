@@ -1,12 +1,23 @@
 "use client";
 
 import type {
+  AccountDeleteRequest,
   AIActionRequest,
+  ConversationCreateRequest,
+  ConversationJoinRequest,
+  ConversationTypingRequest,
   Device,
   DeviceApprovalRequest,
+  DeviceLabelUpdateRequest,
   DeviceRevokeRequest,
+  DirectConversationRequest,
   MessageEnvelope,
+  MessagePinRequest,
+  MessageReactionRequest,
+  MessageUpdateRequest,
+  ProfileUpdateRequest,
   RealtimeEnvelope,
+  ReportCreateRequest,
   SynqBootstrapState,
   AttachmentFinalizeRequest,
   AttachmentSignRequest,
@@ -88,6 +99,13 @@ export async function listDevices() {
   return request<Device[]>("/auth/devices");
 }
 
+export async function renameDevice(payload: DeviceLabelUpdateRequest) {
+  return request<Device>("/devices/label", {
+    method: "POST",
+    body: JSON.stringify(payload),
+  });
+}
+
 export async function approveDevice(payload: DeviceApprovalRequest) {
   return request<Device>("/devices/approve", {
     method: "POST",
@@ -98,6 +116,116 @@ export async function approveDevice(payload: DeviceApprovalRequest) {
 export async function revokeDevice(payload: DeviceRevokeRequest) {
   return request<Device>("/devices/revoke", {
     method: "POST",
+    body: JSON.stringify(payload),
+  });
+}
+
+export async function updateProfile(payload: ProfileUpdateRequest) {
+  return request("/profile", {
+    method: "POST",
+    body: JSON.stringify(payload),
+  });
+}
+
+export async function createConversation(payload: ConversationCreateRequest) {
+  return request("/conversations", {
+    method: "POST",
+    body: JSON.stringify(payload),
+  });
+}
+
+export async function joinConversation(payload: ConversationJoinRequest) {
+  return request("/conversations/join", {
+    method: "POST",
+    body: JSON.stringify(payload),
+  });
+}
+
+export async function startDirectConversation(payload: DirectConversationRequest) {
+  return request("/conversations/direct", {
+    method: "POST",
+    body: JSON.stringify(payload),
+  });
+}
+
+export async function markConversationRead(conversationId: string) {
+  return request(`/conversations/${conversationId}/read`, {
+    method: "POST",
+    body: JSON.stringify({}),
+  });
+}
+
+export async function updateTyping(
+  conversationId: string,
+  payload: ConversationTypingRequest,
+) {
+  return request(`/conversations/${conversationId}/typing`, {
+    method: "POST",
+    body: JSON.stringify(payload),
+  });
+}
+
+export async function findContacts(query: string) {
+  const search = new URLSearchParams({ query }).toString();
+  return request(`/discovery/contacts?${search}`);
+}
+
+export async function reactToMessage(
+  messageId: string,
+  payload: MessageReactionRequest,
+) {
+  return request(`/messages/${messageId}/react`, {
+    method: "POST",
+    body: JSON.stringify(payload),
+  });
+}
+
+export async function pinMessage(
+  messageId: string,
+  payload: MessagePinRequest,
+) {
+  return request(`/messages/${messageId}/pin`, {
+    method: "POST",
+    body: JSON.stringify(payload),
+  });
+}
+
+export async function editMessage(
+  messageId: string,
+  payload: MessageUpdateRequest,
+) {
+  return request(`/messages/${messageId}`, {
+    method: "PATCH",
+    body: JSON.stringify(payload),
+  });
+}
+
+export async function deleteMessage(messageId: string) {
+  return request(`/messages/${messageId}`, {
+    method: "DELETE",
+  });
+}
+
+export async function blockUser(userId: string) {
+  return request(`/users/${userId}/block`, {
+    method: "POST",
+    body: JSON.stringify({}),
+  });
+}
+
+export async function reportMessage(
+  messageId: string,
+  payload: ReportCreateRequest,
+) {
+  return request(`/messages/${messageId}/report`, {
+    method: "POST",
+    body: JSON.stringify(payload),
+  });
+}
+
+export async function deleteAccount(payload: AccountDeleteRequest) {
+  return request("/account", {
+    method: "DELETE",
     body: JSON.stringify(payload),
   });
 }

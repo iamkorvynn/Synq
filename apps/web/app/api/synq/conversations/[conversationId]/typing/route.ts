@@ -1,12 +1,18 @@
 import { NextResponse } from "next/server";
 
-import { revokeViewerDevice } from "@/lib/server/synq-store";
+import { updateTypingIndicator } from "@/lib/server/synq-store";
 import { getViewer } from "@/lib/server/viewer";
 
 export const runtime = "nodejs";
 export const dynamic = "force-dynamic";
 
-export async function POST(request: Request) {
+interface RouteContext {
+  params: Promise<{
+    conversationId: string;
+  }>;
+}
+
+export async function POST(request: Request, context: RouteContext) {
   const viewer = await getViewer();
   if (!viewer) {
     return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
@@ -14,10 +20,13 @@ export async function POST(request: Request) {
 
   try {
     const payload = await request.json();
-    return NextResponse.json(await revokeViewerDevice(viewer, payload));
+    const { conversationId } = await context.params;
+    return NextResponse.json(
+      await updateTypingIndicator(viewer, conversationId, payload),
+    );
   } catch (error) {
     const message =
-      error instanceof Error ? error.message : "Unable to revoke device.";
+      error instanceof Error ? error.message : "Unable to update typing state.";
     return NextResponse.json({ error: message }, { status: 400 });
   }
 }

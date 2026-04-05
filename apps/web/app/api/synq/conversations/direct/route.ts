@@ -1,6 +1,6 @@
 import { NextResponse } from "next/server";
 
-import { revokeViewerDevice } from "@/lib/server/synq-store";
+import { startDirectConversation } from "@/lib/server/synq-store";
 import { getViewer } from "@/lib/server/viewer";
 
 export const runtime = "nodejs";
@@ -14,10 +14,12 @@ export async function POST(request: Request) {
 
   try {
     const payload = await request.json();
-    return NextResponse.json(await revokeViewerDevice(viewer, payload));
+    return NextResponse.json(await startDirectConversation(viewer, payload));
   } catch (error) {
     const message =
-      error instanceof Error ? error.message : "Unable to revoke device.";
+      error instanceof Error
+        ? error.message
+        : "Unable to start a direct signal.";
     return NextResponse.json({ error: message }, { status: 400 });
   }
 }

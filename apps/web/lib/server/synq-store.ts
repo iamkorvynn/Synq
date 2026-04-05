@@ -9,25 +9,51 @@ import {
   generateDeviceKeyPair,
 } from "@synq/crypto";
 import {
+  AccountDeleteRequestSchema,
+  BlockUserRequestSchema,
+  ConversationCreateRequestSchema,
   AIActionRequestSchema,
   AttachmentFinalizeRequestSchema,
   AttachmentSignRequestSchema,
   AttachmentUploadRequestSchema,
+  ConversationJoinRequestSchema,
+  ConversationTypingRequestSchema,
   ConversationSchema,
+  DeviceLabelUpdateRequestSchema,
+  DirectConversationRequestSchema,
+  MessagePinRequestSchema,
+  MessageReactionRequestSchema,
   MessageEnvelopeSchema,
+  MessageUpdateRequestSchema,
   OnboardingRequestSchema,
+  ProfileUpdateRequestSchema,
+  ReportCreateRequestSchema,
   SendMessageRequestSchema,
   type AIActionRequest,
+  type AccountDeleteRequest,
   type AttachmentFinalizeRequest,
   type AttachmentObject,
   type AttachmentSignRequest,
   type AttachmentUploadRequest,
+  type BlockUserRequest,
   type Channel,
   type Conversation,
+  type ConversationCreateRequest,
+  type ConversationJoinRequest,
+  type ConversationMembership,
+  type ConversationTypingRequest,
   type Device,
+  type DeviceLabelUpdateRequest,
+  type DirectConversationRequest,
   type MessageEnvelope,
+  type ModerationLog,
   type OnboardingRequest,
+  type PinnedMessage,
+  type ProfileUpdateRequest,
+  type ReportCreateRequest,
+  type ReportRecord,
   type SynqBootstrapState,
+  type TypingIndicator,
   type User,
   SynqBootstrapStateSchema,
 } from "@synq/protocol";
@@ -61,6 +87,11 @@ const SEEDED_HANDLES = new Set(["numa.ghost", "arya.sol", "kai.vale"]);
 const SEEDED_DEVICE_IDS = new Set(["dev_01", "dev_02", "dev_03", "dev_pending_me"]);
 const SEEDED_CONVERSATION_IDS = new Set(["conv_dm_arya"]);
 const SEEDED_RECOVERY_VALUES = new Set(["numa@synq.local", "+91-00000-00000"]);
+const GLOBAL_CONVERSATION_IDS = new Set([
+  DEFAULT_GROUP_ID,
+  DEFAULT_ROOM_ID,
+  DEFAULT_CHANNEL_ID,
+]);
 
 let pool: Pool | null = null;
 let schemaReady: Promise<void> | null = null;
@@ -109,6 +140,10 @@ function nextAvailableHandle(state: SynqBootstrapState, base: string, excludeUse
 
 function buildDmId(a: string, b: string) {
   return `conv_dm_${[a, b].sort().join("_")}`;
+}
+
+function makeJoinCode() {
+  return randomUUID().replaceAll("-", "").slice(0, 6).toUpperCase();
 }
 
 function createSessionDevice(userId: string): Device {
@@ -225,6 +260,8 @@ function createSharedSeedState() {
         lastMessagePreview: "No signals yet. Say hi to start the room.",
         messageProtection: "managed_plaintext",
         aiPolicyOverride: "inherit",
+        ownerUserId: undefined,
+        joinCode: makeJoinCode(),
       },
       {
         id: DEFAULT_ROOM_ID,
@@ -238,6 +275,8 @@ function createSharedSeedState() {
         lastMessagePreview: "No signals yet. Start the conversation.",
         messageProtection: "managed_plaintext",
         aiPolicyOverride: "inherit",
+        ownerUserId: undefined,
+        joinCode: makeJoinCode(),
         workspaceId: DEFAULT_WORKSPACE_ID,
       },
       {
@@ -252,12 +291,20 @@ function createSharedSeedState() {
         lastMessagePreview: "Announcements will show up here.",
         messageProtection: "managed_plaintext",
         aiPolicyOverride: "ephemeral_cloud",
+        ownerUserId: undefined,
+        joinCode: makeJoinCode(),
         workspaceId: DEFAULT_BROADCAST_ID,
       },
     ],
     channels,
     attachmentObjects: [],
     messages: [],
+    pinnedMessages: [],
+    conversationMemberships: [],
+    typingIndicators: [],
+    blockRecords: [],
+    reports: [],
+    moderationLogs: [],
     presence: [],
     auditEvents: [],
     disappearingJobs: [],
@@ -326,6 +373,108 @@ function stripSeededArtifacts(state: SynqBootstrapState) {
   nextState.disappearingJobs = nextState.disappearingJobs.filter((job) =>
     nextState.messages.some((message) => message.id === job.messageId),
   );
+  nextState.pinnedMessages = nextState.pinnedMessages.filter((pin) =>
+    nextState.messages.some((message) => message.id === pin.messageId),
+  );
+  nextState.conversationMemberships = nextState.conversationMemberships.filter(
+    (membership) =>
+      !seededUserIds.has(membership.userId) &&
+      nextState.conversations.some(
+        (conversation) => conversation.id === membership.conversationId,
+      ),
+  );
+  nextState.typingIndicators = nextState.typingIndicators.filter(
+    (indicator) =>
+      !seededUserIds.has(indicator.userId) &&
+      nextState.conversations.some(
+        (conversation) => conversation.id === indicator.conversationId,
+      ),
+  );
+  nextState.blockRecords = nextState.blockRecords.filter(
+    (record) =>
+      !seededUserIds.has(record.blockerUserId) &&
+      !seededUserIds.has(record.blockedUserId),
+  );
+  nextState.reports = nextState.reports.filter(
+    (report) =>
+      !seededUserIds.has(report.reporterUserId) &&
+      (!report.targetUserId || !seededUserIds.has(report.targetUserId)),
+  );
+  nextState.moderationLogs = nextState.moderationLogs.filter(
+    (log) =>
+      !seededUserIds.has(log.actorUserId) &&
+      (!log.targetUserId || !seededUserIds.has(log.targetUserId)),
+  );
+  nextState.workspacePolicies = nextState.workspacePolicies.map((policy) => {
+    if (policy.workspaceId === DEFAULT_WORKSPACE_ID) {
+      return {
+        ...policy,
+        aiPolicy: "local_only",
+        inviteOnly: false,
+        retentionDays: 90,
+      };
+    }
+
+    if (policy.workspaceId === DEFAULT_BROADCAST_ID) {
+      return {
+        ...policy,
+        aiPolicy: "managed_opt_in",
+        inviteOnly: false,
+        retentionDays: 365,
+      };
+    }
+
+    return policy;
+  });
+  nextState.workspaces = nextState.workspaces.map((workspace) => {
+    if (workspace.id === DEFAULT_WORKSPACE_ID) {
+      return {
+        ...workspace,
+        name: "Synq Lobby",
+        slug: "synq-lobby",
+        description: "Shared space for everyone using the live Synq demo.",
+        ambientScene: "Aurora Vault",
+        aiPolicy: "local",
+      };
+    }
+
+    if (workspace.id === DEFAULT_BROADCAST_ID) {
+      return {
+        ...workspace,
+        name: "Synq Broadcast",
+        slug: "synq-broadcast",
+        description: "Product updates, drops, and public announcements.",
+        ambientScene: "Coral Drift",
+        aiPolicy: "ephemeral_cloud",
+      };
+    }
+
+    return workspace;
+  });
+  nextState.circles = [];
+  nextState.channels = nextState.channels.map((channel) => {
+    if (channel.id === "channel_ops") {
+      return {
+        ...channel,
+        name: "lobby-feed",
+        purpose: "Shared room for everyone who joins Synq.",
+        kind: "workspace_room",
+        visibility: "managed_private",
+      };
+    }
+
+    if (channel.id === "channel_stage") {
+      return {
+        ...channel,
+        name: "product-news",
+        purpose: "Announcements and launch notes from the project owner.",
+        kind: "creator_channel",
+        visibility: "managed_broadcast",
+      };
+    }
+
+    return channel;
+  });
 
   nextState.conversations = nextState.conversations
     .filter(
@@ -341,20 +490,67 @@ function stripSeededArtifacts(state: SynqBootstrapState) {
     .map((conversation) =>
       conversation.kind === "dm"
         ? conversation
-        : {
-            ...conversation,
-            participantIds: conversation.participantIds.filter(
-              (participantId) => !seededUserIds.has(participantId),
-            ),
-            unreadCount: 0,
-            lastMessagePreview:
-              nextState.messages
-                .filter((message) => message.conversationId === conversation.id)
-                .at(-1)?.preview ??
-              (conversation.kind === "creator_channel"
-                ? "Announcements will show up here."
-                : "No signals yet. Start the conversation."),
-          },
+        : (() => {
+            const sanitizedConversation = {
+              ...conversation,
+              participantIds: conversation.participantIds.filter(
+                (participantId) => !seededUserIds.has(participantId),
+              ),
+              unreadCount: 0,
+              typingUserIds: [],
+              lastMessagePreview:
+                nextState.messages
+                  .filter((message) => message.conversationId === conversation.id)
+                  .at(-1)?.preview ??
+                (conversation.kind === "creator_channel"
+                  ? "Announcements will show up here."
+                  : "No signals yet. Start the conversation."),
+            };
+
+            if (conversation.id === DEFAULT_GROUP_ID) {
+              return {
+                ...sanitizedConversation,
+                title: "Common Room",
+                subtitle: "Private group",
+                kind: "private_group" as const,
+                visibility: "managed_private" as const,
+                messageProtection: "managed_plaintext" as const,
+                aiPolicyOverride: "inherit" as const,
+                joinCode: sanitizedConversation.joinCode ?? makeJoinCode(),
+                workspaceId: undefined,
+              };
+            }
+
+            if (conversation.id === DEFAULT_ROOM_ID) {
+              return {
+                ...sanitizedConversation,
+                title: "Lobby Feed",
+                subtitle: "Synq Lobby",
+                kind: "workspace_room" as const,
+                visibility: "managed_private" as const,
+                messageProtection: "managed_plaintext" as const,
+                aiPolicyOverride: "inherit" as const,
+                joinCode: sanitizedConversation.joinCode ?? makeJoinCode(),
+                workspaceId: DEFAULT_WORKSPACE_ID,
+              };
+            }
+
+            if (conversation.id === DEFAULT_CHANNEL_ID) {
+              return {
+                ...sanitizedConversation,
+                title: "Product News",
+                subtitle: "Broadcast room",
+                kind: "creator_channel" as const,
+                visibility: "managed_broadcast" as const,
+                messageProtection: "managed_plaintext" as const,
+                aiPolicyOverride: "ephemeral_cloud" as const,
+                joinCode: sanitizedConversation.joinCode ?? makeJoinCode(),
+                workspaceId: DEFAULT_BROADCAST_ID,
+              };
+            }
+
+            return sanitizedConversation;
+          })(),
     );
 
   nextState.currentUserId = nextState.users[0]?.id ?? "bootstrap";
@@ -544,20 +740,144 @@ function syncSharedMembership(state: SynqBootstrapState) {
   }));
 
   state.conversations = state.conversations.map((conversation) => {
-    if (conversation.kind === "dm") {
-      return conversation;
-    }
+    const participantIds =
+      conversation.kind !== "dm" && GLOBAL_CONVERSATION_IDS.has(conversation.id)
+        ? [...new Set([...conversation.participantIds, ...userIds])]
+        : [...new Set(conversation.participantIds)];
 
     return {
       ...conversation,
-      participantIds: [...new Set([...conversation.participantIds, ...userIds])],
+      participantIds,
     };
   });
+
+  state.conversationMemberships = state.conversationMemberships.filter(
+    (membership) =>
+      state.conversations.some(
+        (conversation) =>
+          conversation.id === membership.conversationId &&
+          conversation.participantIds.includes(membership.userId),
+      ),
+  );
+
+  for (const conversation of state.conversations) {
+    for (const participantId of conversation.participantIds) {
+      if (
+        !state.conversationMemberships.some(
+          (membership) =>
+            membership.conversationId === conversation.id &&
+            membership.userId === participantId,
+        )
+      ) {
+        state.conversationMemberships.push({
+          id: `membership_${conversation.id}_${participantId}`,
+          conversationId: conversation.id,
+          userId: participantId,
+          joinedAt: nowIso(),
+          lastReadAt: undefined,
+          unreadCount: 0,
+        });
+      }
+    }
+  }
+}
+
+function hasBlockedRelationship(
+  state: SynqBootstrapState,
+  leftUserId: string,
+  rightUserId: string,
+) {
+  return state.blockRecords.some(
+    (record) =>
+      (record.blockerUserId === leftUserId &&
+        record.blockedUserId === rightUserId) ||
+      (record.blockerUserId === rightUserId &&
+        record.blockedUserId === leftUserId),
+  );
+}
+
+function sanitizeUserForViewer(user: User, viewerId: string): User {
+  if (user.id === viewerId) {
+    return user;
+  }
+
+  const showHandleOnly = user.profileVisibility === "handle_only" || user.ghostMode;
+
+  return {
+    ...user,
+    name: showHandleOnly ? `@${user.handle}` : user.name,
+    avatar: user.hiddenAvatar ? "◌" : user.avatar,
+    bio: user.privateDiscovery
+      ? "Private discovery is enabled for this profile."
+      : user.bio,
+    linkedEmail: undefined,
+    linkedPhone: undefined,
+  };
+}
+
+function activeTypingUserIds(
+  state: SynqBootstrapState,
+  conversationId: string,
+  viewerId: string,
+) {
+  const nowMs = Date.now();
+  return [...new Set(
+    state.typingIndicators
+      .filter(
+        (indicator) =>
+          indicator.conversationId === conversationId &&
+          indicator.userId !== viewerId &&
+          new Date(indicator.expiresAt).getTime() > nowMs,
+      )
+      .map((indicator) => indicator.userId),
+  )];
+}
+
+function membershipFor(
+  state: SynqBootstrapState,
+  conversationId: string,
+  userId: string,
+) {
+  return state.conversationMemberships.find(
+    (membership) =>
+      membership.conversationId === conversationId && membership.userId === userId,
+  );
+}
+
+function ensureMembership(
+  state: SynqBootstrapState,
+  conversationId: string,
+  userId: string,
+) {
+  let membership = membershipFor(state, conversationId, userId);
+  if (!membership) {
+    membership = {
+      id: `membership_${conversationId}_${userId}`,
+      conversationId,
+      userId,
+      joinedAt: nowIso(),
+      lastReadAt: undefined,
+      unreadCount: 0,
+    };
+    state.conversationMemberships.push(membership);
+  }
+
+  return membership;
+}
+
+function markConversationRead(
+  state: SynqBootstrapState,
+  conversationId: string,
+  userId: string,
+) {
+  const membership = ensureMembership(state, conversationId, userId);
+  membership.lastReadAt = nowIso();
+  membership.unreadCount = 0;
 }
 
 function ensureDirectMessages(state: SynqBootstrapState, userId: string) {
   for (const other of state.users) {
-    if (other.id === userId) {
+    if (other.id === userId || hasBlockedRelationship(state, userId, other.id)) {
       continue;
     }
 
@@ -579,6 +899,7 @@ function ensureDirectMessages(state: SynqBootstrapState, userId: string) {
         lastMessagePreview: `${other.name} is reachable now.`,
         messageProtection: "managed_plaintext",
         aiPolicyOverride: "inherit",
+        ownerUserId: userId,
       }),
     );
   }
@@ -600,12 +921,15 @@ function ensureViewer(state: SynqBootstrapState, viewer: ViewerIdentity) {
       id: nextId,
       name: viewer.name,
       handle,
-      role: "Member",
+      role: state.users.length === 0 ? "Owner" : "Member",
       avatar: (viewer.name.trim()[0] ?? viewer.email[0] ?? "S").toUpperCase(),
-      bio: "Joined the invite-only Synq beta through Google sign-in.",
+      bio: "Joined Synq through Google sign-in.",
       trustState: "verified",
       aiPolicy: "local",
       ghostMode: true,
+      profileVisibility: "handle_only",
+      hiddenAvatar: false,
+      privateDiscovery: false,
       onboardingComplete: false,
       linkedEmail: viewer.email,
     };
@@ -633,6 +957,11 @@ function ensureViewer(state: SynqBootstrapState, viewer: ViewerIdentity) {
 
   ensureDirectMessages(state, user.id);
   syncSharedMembership(state);
+  for (const conversation of state.conversations) {
+    if (conversation.participantIds.includes(user.id)) {
+      ensureMembership(state, conversation.id, user.id);
+    }
+  }
 
   return {
     userId: user.id,
@@ -659,20 +988,44 @@ function buildSessionEnvelope(userId: string, deviceId: string) {
 }
 
 function personalizeConversations(state: SynqBootstrapState, viewerId: string) {
+  const presentedUsers = state.users.map((user) => sanitizeUserForViewer(user, viewerId));
+
   return state.conversations
-    .filter((conversation) => conversation.participantIds.includes(viewerId))
-    .map((conversation) => {
+    .filter((conversation) => {
+      if (!conversation.participantIds.includes(viewerId)) {
+        return false;
+      }
+
       if (conversation.kind !== "dm") {
-        return conversation;
+        return true;
+      }
+
+      const otherId = conversation.participantIds.find(
+        (participantId) => participantId !== viewerId,
+      );
+      return !otherId || !hasBlockedRelationship(state, viewerId, otherId);
+    })
+    .map((conversation) => {
+      const membership = membershipFor(state, conversation.id, viewerId);
+      const typingUserIds = activeTypingUserIds(state, conversation.id, viewerId);
+
+      if (conversation.kind !== "dm") {
+        return {
+          ...conversation,
+          unreadCount: membership?.unreadCount ?? 0,
+          typingUserIds,
+        };
       }
 
       const otherId = conversation.participantIds.find((participantId) => participantId !== viewerId);
-      const other = state.users.find((user) => user.id === otherId);
+      const other = presentedUsers.find((user) => user.id === otherId);
 
       return {
         ...conversation,
         title: other?.name ?? "Direct signal",
         subtitle: other?.handle ? `@${other.handle}` : "Direct message",
+        unreadCount: membership?.unreadCount ?? 0,
+        typingUserIds,
       };
     })
     .sort(
@@ -683,10 +1036,17 @@ function personalizeConversations(state: SynqBootstrapState, viewerId: string) {
 }
 
 function relevantMessages(state: SynqBootstrapState, viewerId: string, conversationIds: Set<string>) {
+  const blockedUserIds = new Set(
+    state.blockRecords
+      .filter((record) => record.blockerUserId === viewerId)
+      .map((record) => record.blockedUserId),
+  );
+
   return state.messages
     .filter(
       (message) =>
         conversationIds.has(message.conversationId) &&
+        !blockedUserIds.has(message.senderId) &&
         state.conversations
           .find((conversation) => conversation.id === message.conversationId)
           ?.participantIds.includes(viewerId),
@@ -701,16 +1061,57 @@ function buildBootstrapState(state: SynqBootstrapState, viewerId: string, device
   const cloned = structuredClone(state);
   const conversations = personalizeConversations(cloned, viewerId);
   const conversationIds = new Set(conversations.map((conversation) => conversation.id));
+  const users = cloned.users.map((user) => sanitizeUserForViewer(user, viewerId));
+  const isModerator =
+    cloned.users.find((user) => user.id === viewerId)?.role === "Owner" ||
+    cloned.users.find((user) => user.id === viewerId)?.role === "Moderator";
+  const channelUnreadCounts = new Map<string, number>();
+
+  for (const conversation of conversations) {
+    if (!conversation.workspaceId) {
+      continue;
+    }
+
+    const current = channelUnreadCounts.get(conversation.workspaceId) ?? 0;
+    channelUnreadCounts.set(
+      conversation.workspaceId,
+      current + (conversation.unreadCount ?? 0),
+    );
+  }
 
   return SynqBootstrapStateSchema.parse({
     ...cloned,
     currentUserId: viewerId,
     currentDeviceId: deviceId,
     activeSession: buildSessionEnvelope(viewerId, deviceId),
-    users: cloned.users,
+    users,
     devices: cloned.devices,
     conversations,
+    channels: cloned.channels.map((channel) => ({
+      ...channel,
+      unreadCount: channelUnreadCounts.get(channel.workspaceId) ?? 0,
+    })),
     messages: relevantMessages(cloned, viewerId, conversationIds),
+    pinnedMessages: cloned.pinnedMessages.filter((pin) =>
+      conversationIds.has(pin.conversationId),
+    ),
+    conversationMemberships: cloned.conversationMemberships.filter(
+      (membership) => membership.userId === viewerId,
+    ),
+    typingIndicators: cloned.typingIndicators.filter(
+      (indicator) =>
+        conversationIds.has(indicator.conversationId) &&
+        new Date(indicator.expiresAt).getTime() > Date.now(),
+    ),
+    blockRecords: cloned.blockRecords.filter(
+      (record) => record.blockerUserId === viewerId,
+    ),
+    reports: isModerator
+      ? cloned.reports
+      : cloned.reports.filter((report) => report.reporterUserId === viewerId),
+    moderationLogs: isModerator
+      ? cloned.moderationLogs
+      : cloned.moderationLogs.filter((log) => log.actorUserId === viewerId),
   });
 }
 
@@ -724,6 +1125,32 @@ function conversationForUser(
       conversation.id === conversationId &&
       conversation.participantIds.includes(viewerId),
   );
+}
+
+function findUserByHandle(state: SynqBootstrapState, handle: string) {
+  return state.users.find(
+    (user) => user.handle.toLowerCase() === sanitizeHandle(handle).toLowerCase(),
+  );
+}
+
+function isModerator(state: SynqBootstrapState, userId: string) {
+  const role = state.users.find((user) => user.id === userId)?.role;
+  return role === "Owner" || role === "Moderator";
+}
+
+function touchConversation(
+  state: SynqBootstrapState,
+  conversationId: string,
+  preview: string,
+  createdAt = nowIso(),
+) {
+  const target = state.conversations.find((item) => item.id === conversationId);
+  if (!target) {
+    return;
+  }
+
+  target.lastActivityAt = createdAt;
+  target.lastMessagePreview = preview;
 }
 
 async function withStateMutation<T>(
@@ -772,6 +1199,9 @@ export async function completeViewerOnboarding(
     currentUser.handle = nextHandle;
     currentUser.avatar = (parsed.name.trim()[0] ?? currentUser.avatar).toUpperCase();
     currentUser.ghostMode = parsed.ghostMode;
+    currentUser.profileVisibility = parsed.profileVisibility;
+    currentUser.hiddenAvatar = parsed.hiddenAvatar;
+    currentUser.privateDiscovery = parsed.privateDiscovery;
     currentUser.onboardingComplete = true;
     currentUser.linkedEmail = viewer.email;
 
@@ -790,6 +1220,237 @@ export async function completeViewerOnboarding(
           value: method.value,
         });
       }
+    }
+
+    return { ok: true };
+  });
+}
+
+export async function updateViewerProfile(
+  viewer: ViewerIdentity,
+  payload: ProfileUpdateRequest,
+) {
+  const parsed = ProfileUpdateRequestSchema.parse(payload);
+
+  return withStateMutation(viewer, async (state, ids) => {
+    const currentUser = state.users.find((user) => user.id === ids.userId);
+    if (!currentUser) {
+      throw new Error("Current user not found.");
+    }
+
+    currentUser.name = parsed.name.trim();
+    currentUser.bio = parsed.bio.trim();
+    currentUser.avatar = parsed.avatar.trim().slice(0, 2) || currentUser.avatar;
+    currentUser.ghostMode = parsed.ghostMode;
+    currentUser.profileVisibility = parsed.profileVisibility;
+    currentUser.hiddenAvatar = parsed.hiddenAvatar;
+    currentUser.privateDiscovery = parsed.privateDiscovery;
+    return currentUser;
+  });
+}
+
+export async function createConversationRoom(
+  viewer: ViewerIdentity,
+  payload: ConversationCreateRequest,
+) {
+  const parsed = ConversationCreateRequestSchema.parse(payload);
+
+  return withStateMutation(viewer, async (state, ids) => {
+    const participantIds = new Set<string>([ids.userId, ...parsed.participantIds]);
+    for (const handle of parsed.participantHandles) {
+      const match = findUserByHandle(state, handle);
+      if (match && !hasBlockedRelationship(state, ids.userId, match.id)) {
+        participantIds.add(match.id);
+      }
+    }
+
+    if (parsed.kind === "dm") {
+      const others = [...participantIds].filter((participantId) => participantId !== ids.userId);
+      if (others.length !== 1) {
+        throw new Error("Direct signals require exactly one other participant.");
+      }
+
+      const existingId = buildDmId(ids.userId, others[0]);
+      const existing = state.conversations.find((conversation) => conversation.id === existingId);
+      if (existing) {
+        markConversationRead(state, existing.id, ids.userId);
+        return existing;
+      }
+    }
+
+    const conversationId =
+      parsed.kind === "dm"
+        ? buildDmId(ids.userId, [...participantIds].find((participantId) => participantId !== ids.userId) ?? ids.userId)
+        : `conv_${randomUUID().replaceAll("-", "").slice(0, 12)}`;
+    const createdAt = nowIso();
+    const conversation = ConversationSchema.parse({
+      id: conversationId,
+      title: parsed.title.trim(),
+      subtitle: parsed.subtitle.trim(),
+      kind: parsed.kind,
+      visibility: parsed.visibility,
+      participantIds: [...participantIds],
+      unreadCount: 0,
+      disappearingSeconds: parsed.disappearingSeconds,
+      lastActivityAt: createdAt,
+      lastMessagePreview: "Room created. Invite friends with the join code.",
+      messageProtection: "managed_plaintext",
+      aiPolicyOverride: "inherit",
+      ownerUserId: ids.userId,
+      joinCode: parsed.kind === "dm" ? undefined : makeJoinCode(),
+      workspaceId:
+        parsed.kind === "workspace_room" || parsed.kind === "creator_channel"
+          ? parsed.workspaceId ?? DEFAULT_WORKSPACE_ID
+          : undefined,
+    });
+
+    state.conversations.push(conversation);
+    syncSharedMembership(state);
+    for (const participantId of conversation.participantIds) {
+      ensureMembership(state, conversation.id, participantId);
+    }
+    markConversationRead(state, conversation.id, ids.userId);
+    return conversation;
+  });
+}
+
+export async function joinConversationWithCode(
+  viewer: ViewerIdentity,
+  payload: ConversationJoinRequest,
+) {
+  const parsed = ConversationJoinRequestSchema.parse(payload);
+
+  return withStateMutation(viewer, async (state, ids) => {
+    const conversation = state.conversations.find(
+      (item) =>
+        item.joinCode?.toUpperCase() === parsed.code.toUpperCase() &&
+        item.kind !== "dm",
+    );
+    if (!conversation) {
+      throw new Error("Join code not found.");
+    }
+
+    if (!conversation.participantIds.includes(ids.userId)) {
+      conversation.participantIds = [...conversation.participantIds, ids.userId];
+    }
+
+    syncSharedMembership(state);
+    markConversationRead(state, conversation.id, ids.userId);
+    return conversation;
+  });
+}
+
+export async function startDirectConversation(
+  viewer: ViewerIdentity,
+  payload: DirectConversationRequest,
+) {
+  const parsed = DirectConversationRequestSchema.parse(payload);
+
+  return withStateMutation(viewer, async (state, ids) => {
+    const target = findUserByHandle(state, parsed.handle);
+    if (!target || target.id === ids.userId) {
+      throw new Error("That handle is not available.");
+    }
+
+    if (hasBlockedRelationship(state, ids.userId, target.id)) {
+      throw new Error("You cannot start a direct signal with this account.");
+    }
+
+    ensureDirectMessages(state, ids.userId);
+    const conversationId = buildDmId(ids.userId, target.id);
+    let conversation = state.conversations.find((item) => item.id === conversationId);
+
+    if (!conversation) {
+      conversation = ConversationSchema.parse({
+        id: conversationId,
+        title: target.name,
+        subtitle: `@${target.handle}`,
+        kind: "dm",
+        visibility: "managed_private",
+        participantIds: [ids.userId, target.id],
+        unreadCount: 0,
+        lastActivityAt: nowIso(),
+        lastMessagePreview: `${target.name} is reachable now.`,
+        messageProtection: "managed_plaintext",
+        aiPolicyOverride: "inherit",
+        ownerUserId: ids.userId,
+      });
+      state.conversations.push(conversation);
+    }
+
+    syncSharedMembership(state);
+    markConversationRead(state, conversation.id, ids.userId);
+    return conversation;
+  });
+}
+
+export async function findContacts(viewer: ViewerIdentity, query?: string) {
+  const normalizedQuery = sanitizeHandle(query ?? "");
+  const state = await getBootstrapState(viewer);
+
+  return state.users
+    .filter((user) => user.id !== state.currentUserId)
+    .filter((user) => {
+      if (!normalizedQuery) {
+        return !user.privateDiscovery;
+      }
+
+      const exactHandle = user.handle.toLowerCase() === normalizedQuery.toLowerCase();
+      if (user.privateDiscovery) {
+        return exactHandle;
+      }
+
+      return (
+        exactHandle ||
+        user.name.toLowerCase().includes(normalizedQuery.toLowerCase()) ||
+        user.handle.toLowerCase().includes(normalizedQuery.toLowerCase())
+      );
+    })
+    .slice(0, 8);
+}
+
+export async function markConversationReadForViewer(
+  viewer: ViewerIdentity,
+  conversationId: string,
+) {
+  return withStateMutation(viewer, async (state, ids) => {
+    const conversation = conversationForUser(state, conversationId, ids.userId);
+    if (!conversation) {
+      throw new Error("Conversation not found.");
+    }
+
+    markConversationRead(state, conversation.id, ids.userId);
+    return { ok: true };
+  });
+}
+
+export async function updateTypingIndicator(
+  viewer: ViewerIdentity,
+  conversationId: string,
+  payload: ConversationTypingRequest,
+) {
+  const parsed = ConversationTypingRequestSchema.parse(payload);
+
+  return withStateMutation(viewer, async (state, ids) => {
+    const conversation = conversationForUser(state, conversationId, ids.userId);
+    if (!conversation) {
+      throw new Error("Conversation not found.");
+    }
+
+    state.typingIndicators = state.typingIndicators.filter(
+      (indicator) =>
+        !(
+          indicator.conversationId === conversationId &&
+          indicator.userId === ids.userId
+        ),
+    );
+
+    if (parsed.isTyping) {
+      state.typingIndicators.push({
+        conversationId,
+        userId: ids.userId,
+        expiresAt: new Date(Date.now() + 8_000).toISOString(),
+      });
     }
 
     return { ok: true };
@@ -835,17 +1496,206 @@ export async function createMessage(
         : parsed.messageProtection ?? "managed_plaintext",
       mentions: parsed.mentions ?? [],
       replyToId: parsed.replyToId,
+      reactions: [],
       attachments: parsed.attachments ?? [],
     });
 
     state.messages.push(message);
-    const target = state.conversations.find((item) => item.id === conversationId);
-    if (target) {
-      target.lastActivityAt = message.createdAt;
-      target.lastMessagePreview = message.preview;
+    touchConversation(state, conversationId, message.preview, message.createdAt);
+    for (const participantId of conversation.participantIds) {
+      const membership = ensureMembership(state, conversationId, participantId);
+      if (participantId === ids.userId) {
+        membership.lastReadAt = message.createdAt;
+        membership.unreadCount = 0;
+      } else {
+        membership.unreadCount += 1;
+      }
     }
 
     return message;
+  });
+}
+
+export async function toggleMessageReaction(
+  viewer: ViewerIdentity,
+  messageId: string,
+  payload: unknown,
+) {
+  const parsed = MessageReactionRequestSchema.parse(payload);
+
+  return withStateMutation(viewer, async (state, ids) => {
+    const message = state.messages.find((item) => item.id === messageId);
+    if (!message) {
+      throw new Error("Message not found.");
+    }
+
+    const conversation = conversationForUser(state, message.conversationId, ids.userId);
+    if (!conversation) {
+      throw new Error("Conversation not found.");
+    }
+
+    const existingIndex = message.reactions.findIndex(
+      (reaction) =>
+        reaction.userId === ids.userId && reaction.emoji === parsed.emoji,
+    );
+
+    if (existingIndex >= 0) {
+      message.reactions.splice(existingIndex, 1);
+    } else {
+      message.reactions.push({
+        emoji: parsed.emoji,
+        userId: ids.userId,
+        createdAt: nowIso(),
+      });
+    }
+
+    return message;
+  });
+}
+
+export async function toggleMessagePin(
+  viewer: ViewerIdentity,
+  messageId: string,
+  payload: unknown,
+) {
+  const parsed = MessagePinRequestSchema.parse(payload);
+
+  return withStateMutation(viewer, async (state, ids) => {
+    const message = state.messages.find((item) => item.id === messageId);
+    if (!message) {
+      throw new Error("Message not found.");
+    }
+
+    const conversation = conversationForUser(state, message.conversationId, ids.userId);
+    if (!conversation) {
+      throw new Error("Conversation not found.");
+    }
+
+    state.pinnedMessages = state.pinnedMessages.filter(
+      (pin) => pin.messageId !== messageId,
+    );
+
+    if (parsed.pinned) {
+      state.pinnedMessages.unshift({
+        id: `pin_${randomUUID().replaceAll("-", "").slice(0, 12)}`,
+        conversationId: message.conversationId,
+        messageId,
+        pinnedByUserId: ids.userId,
+        createdAt: nowIso(),
+      });
+    }
+
+    return { ok: true };
+  });
+}
+
+export async function updateMessage(
+  viewer: ViewerIdentity,
+  messageId: string,
+  payload: unknown,
+) {
+  const parsed = MessageUpdateRequestSchema.parse(payload);
+
+  return withStateMutation(viewer, async (state, ids) => {
+    const message = state.messages.find((item) => item.id === messageId);
+    if (!message) {
+      throw new Error("Message not found.");
+    }
+
+    const conversation = conversationForUser(state, message.conversationId, ids.userId);
+    if (!conversation) {
+      throw new Error("Conversation not found.");
+    }
+
+    const canEdit = message.senderId === ids.userId || isModerator(state, ids.userId);
+    if (!canEdit) {
+      throw new Error("You cannot change this message.");
+    }
+
+    if (parsed.deleted) {
+      message.preview = "Message deleted.";
+      message.ciphertext = "deleted";
+      message.deletedAt = nowIso();
+      message.attachments = [];
+      message.reactions = [];
+    } else {
+      if (parsed.preview) {
+        message.preview = parsed.preview;
+      }
+      if (parsed.ciphertext) {
+        message.ciphertext = parsed.ciphertext;
+      }
+      message.editedAt = nowIso();
+    }
+
+    touchConversation(state, message.conversationId, message.preview, nowIso());
+    return message;
+  });
+}
+
+export async function blockUserForViewer(
+  viewer: ViewerIdentity,
+  payload: BlockUserRequest,
+) {
+  const parsed = BlockUserRequestSchema.parse(payload);
+
+  return withStateMutation(viewer, async (state, ids) => {
+    if (parsed.targetUserId === ids.userId) {
+      throw new Error("You cannot block yourself.");
+    }
+
+    if (
+      !state.blockRecords.some(
+        (record) =>
+          record.blockerUserId === ids.userId &&
+          record.blockedUserId === parsed.targetUserId,
+      )
+    ) {
+      state.blockRecords.push({
+        id: `block_${randomUUID().replaceAll("-", "").slice(0, 10)}`,
+        blockerUserId: ids.userId,
+        blockedUserId: parsed.targetUserId,
+        createdAt: nowIso(),
+      });
+    }
+
+    return { ok: true };
+  });
+}
+
+export async function createModerationReport(
+  viewer: ViewerIdentity,
+  payload: ReportCreateRequest,
+) {
+  const parsed = ReportCreateRequestSchema.parse(payload);
+
+  return withStateMutation(viewer, async (state, ids) => {
+    const report: ReportRecord = {
+      id: `report_${randomUUID().replaceAll("-", "").slice(0, 10)}`,
+      reporterUserId: ids.userId,
+      targetUserId: parsed.targetUserId,
+      conversationId: parsed.conversationId,
+      messageId: parsed.messageId,
+      reason: parsed.reason,
+      note: parsed.note,
+      createdAt: nowIso(),
+    };
+    const moderationLog: ModerationLog = {
+      id: `mod_${randomUUID().replaceAll("-", "").slice(0, 10)}`,
+      actorUserId: ids.userId,
+      targetUserId: parsed.targetUserId,
+      conversationId: parsed.conversationId,
+      messageId: parsed.messageId,
+      action: "report.created",
+      createdAt: nowIso(),
+      details: {
+        reason: parsed.reason,
+      },
+    };
+
+    state.reports.unshift(report);
+    state.moderationLogs.unshift(moderationLog);
+    return report;
   });
 }
 
@@ -958,6 +1808,126 @@ export async function readAttachmentContent(
   }
 
   return loadAttachmentBlob(attachmentId);
+}
+
+export async function renameViewerDevice(
+  viewer: ViewerIdentity,
+  payload: DeviceLabelUpdateRequest,
+) {
+  const parsed = DeviceLabelUpdateRequestSchema.parse(payload);
+
+  return withStateMutation(viewer, async (state, ids) => {
+    const device = state.devices.find(
+      (item) => item.id === parsed.deviceId && item.userId === ids.userId,
+    );
+    if (!device) {
+      throw new Error("Device not found.");
+    }
+
+    device.label = parsed.label.trim();
+    return device;
+  });
+}
+
+export async function revokeViewerDevice(
+  viewer: ViewerIdentity,
+  payload: { deviceId: string },
+) {
+  const deviceId = payload.deviceId;
+
+  return withStateMutation(viewer, async (state, ids) => {
+    if (deviceId === ids.deviceId) {
+      throw new Error("Use sign out to end the active session.");
+    }
+
+    const device = state.devices.find(
+      (item) => item.id === deviceId && item.userId === ids.userId,
+    );
+    if (!device) {
+      throw new Error("Device not found.");
+    }
+
+    device.trustState = "revoked";
+    device.revokedAt = nowIso();
+    return device;
+  });
+}
+
+export async function deleteViewerAccount(
+  viewer: ViewerIdentity,
+  payload: AccountDeleteRequest,
+) {
+  const parsed = AccountDeleteRequestSchema.parse(payload);
+
+  return withStateMutation(viewer, async (state, ids) => {
+    if (parsed.confirm !== "DELETE MY ACCOUNT") {
+      throw new Error("Confirmation did not match.");
+    }
+
+    const removedConversationIds = new Set(
+      state.conversations
+        .filter(
+          (conversation) =>
+            conversation.kind === "dm" &&
+            conversation.participantIds.includes(ids.userId),
+        )
+        .map((conversation) => conversation.id),
+    );
+
+    state.users = state.users.filter((user) => user.id !== ids.userId);
+    state.recoveryMethods = state.recoveryMethods.filter(
+      (method) => !method.id.includes(ids.userId) && method.value !== viewer.email,
+    );
+    state.devices = state.devices.filter((device) => device.userId !== ids.userId);
+    state.passkeys = state.passkeys.filter((passkey) => passkey.userId !== ids.userId);
+    state.deviceApprovals = state.deviceApprovals.filter(
+      (approval) =>
+        approval.userId !== ids.userId &&
+        approval.approvedByDeviceId !== ids.deviceId,
+    );
+    state.attachmentObjects = state.attachmentObjects.filter(
+      (attachment) => attachment.ownerUserId !== ids.userId,
+    );
+    state.messages = state.messages.filter((message) => message.senderId !== ids.userId);
+    state.pinnedMessages = state.pinnedMessages.filter(
+      (pin) => !removedConversationIds.has(pin.conversationId),
+    );
+    state.typingIndicators = state.typingIndicators.filter(
+      (indicator) => indicator.userId !== ids.userId,
+    );
+    state.blockRecords = state.blockRecords.filter(
+      (record) =>
+        record.blockerUserId !== ids.userId && record.blockedUserId !== ids.userId,
+    );
+    state.reports = state.reports.filter(
+      (report) =>
+        report.reporterUserId !== ids.userId && report.targetUserId !== ids.userId,
+    );
+    state.moderationLogs = state.moderationLogs.filter(
+      (log) => log.actorUserId !== ids.userId && log.targetUserId !== ids.userId,
+    );
+    state.conversations = state.conversations
+      .filter((conversation) => !removedConversationIds.has(conversation.id))
+      .map((conversation) => ({
+        ...conversation,
+        participantIds: conversation.participantIds.filter(
+          (participantId) => participantId !== ids.userId,
+        ),
+      }));
+    state.conversationMemberships = state.conversationMemberships.filter(
+      (membership) => membership.userId !== ids.userId,
+    );
+
+    if (state.users.length && !state.users.some((user) => user.role === "Owner")) {
+      state.users[0] = {
+        ...state.users[0],
+        role: "Owner",
+      };
+    }
+
+    syncSharedMembership(state);
+    return { ok: true };
+  });
 }
 
 function aiResultFor(action: AIActionRequest["action"], input: string) {

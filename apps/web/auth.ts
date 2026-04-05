@@ -10,6 +10,14 @@ function parseCsv(value: string | undefined) {
 
 const allowedEmails = new Set(parseCsv(process.env.SYNQ_INVITE_EMAILS));
 const allowedDomains = new Set(parseCsv(process.env.SYNQ_INVITE_DOMAINS));
+const googleClientId =
+  process.env.AUTH_GOOGLE_ID ??
+  process.env.GOOGLE_CLIENT_ID ??
+  process.env.NEXT_PUBLIC_GOOGLE_CLIENT_ID ??
+  "";
+const googleClientSecret =
+  process.env.AUTH_GOOGLE_SECRET ?? process.env.GOOGLE_CLIENT_SECRET ?? "";
+const authSecret = process.env.AUTH_SECRET ?? process.env.NEXTAUTH_SECRET;
 
 function isInvited(email: string) {
   if (!allowedEmails.size && !allowedDomains.size) {
@@ -24,6 +32,7 @@ function isInvited(email: string) {
 
 export const { handlers, auth, signIn, signOut } = NextAuth({
   trustHost: true,
+  secret: authSecret,
   session: {
     strategy: "jwt",
   },
@@ -31,13 +40,15 @@ export const { handlers, auth, signIn, signOut } = NextAuth({
     signIn: "/chat",
     error: "/chat",
   },
-  providers: [
-    Google({
-      clientId: process.env.AUTH_GOOGLE_ID ?? "missing-google-client-id",
-      clientSecret:
-        process.env.AUTH_GOOGLE_SECRET ?? "missing-google-client-secret",
-    }),
-  ],
+  providers:
+    googleClientId && googleClientSecret
+      ? [
+          Google({
+            clientId: googleClientId,
+            clientSecret: googleClientSecret,
+          }),
+        ]
+      : [],
   callbacks: {
     async signIn({ user }) {
       if (!user.email) {
