@@ -59,7 +59,8 @@ export async function buildServer() {
   );
 
   app.setErrorHandler((error, _request, reply) => {
-    const message = error.message || "Unexpected error.";
+    const message =
+      error instanceof Error ? error.message : "Unexpected error.";
     const statusCode =
       /Missing session|Session expired|Unauthorized/i.test(message)
         ? 401

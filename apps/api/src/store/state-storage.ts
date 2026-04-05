@@ -26,7 +26,7 @@ export class MemoryRuntimeStateStorage implements RuntimeStateStorage {
 
   constructor(private runtime: PersistedRuntime | null = null) {}
 
-  async load(seed: PersistedRuntime) {
+  async load(seed: PersistedRuntime): Promise<PersistedRuntime> {
     if (!this.runtime) {
       this.runtime = structuredClone(seed);
     }
@@ -34,18 +34,18 @@ export class MemoryRuntimeStateStorage implements RuntimeStateStorage {
     return structuredClone(this.runtime);
   }
 
-  async save(runtime: PersistedRuntime) {
+  async save(runtime: PersistedRuntime): Promise<void> {
     this.runtime = structuredClone(runtime);
   }
 
-  async health() {
+  async health(): Promise<{ ok: boolean; driver: string }> {
     return {
       ok: true,
       driver: this.driver,
     };
   }
 
-  async close() {}
+  async close(): Promise<void> {}
 }
 
 export class PostgresRuntimeStateStorage implements RuntimeStateStorage {
@@ -70,7 +70,7 @@ export class PostgresRuntimeStateStorage implements RuntimeStateStorage {
     this.initialized = true;
   }
 
-  async load(seed: PersistedRuntime) {
+  async load(seed: PersistedRuntime): Promise<PersistedRuntime> {
     await this.ensureInitialized();
     const existing = await this.pool.query<{
       payload: PersistedRuntime;
@@ -84,10 +84,17 @@ export class PostgresRuntimeStateStorage implements RuntimeStateStorage {
       return structuredClone(seed);
     }
 
-    return PersistedRuntimeSchema.parse(existing.rows[0].payload);
+    const payload = existing.rows[0]?.payload;
+
+    if (!payload) {
+      await this.save(seed);
+      return structuredClone(seed);
+    }
+
+    return PersistedRuntimeSchema.parse(payload);
   }
 
-  async save(runtime: PersistedRuntime) {
+  async save(runtime: PersistedRuntime): Promise<void> {
     await this.ensureInitialized();
     await this.pool.query(
       `
@@ -100,7 +107,7 @@ export class PostgresRuntimeStateStorage implements RuntimeStateStorage {
     );
   }
 
-  async health() {
+  async health(): Promise<{ ok: boolean; driver: string }> {
     await this.ensureInitialized();
     await this.pool.query("select 1");
     return {
@@ -109,7 +116,7 @@ export class PostgresRuntimeStateStorage implements RuntimeStateStorage {
     };
   }
 
-  async close() {
+  async close(): Promise<void> {
     await this.pool.end();
   }
 }
