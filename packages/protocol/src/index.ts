@@ -37,6 +37,7 @@ export const messageProtectionValues = [
   "sender_key",
   "managed_plaintext",
 ] as const;
+export const directConversationStateValues = ["implicit", "started"] as const;
 export const attachmentStatusValues = [
   "pending",
   "uploaded",
@@ -74,6 +75,8 @@ export type ProfileVisibility = (typeof profileVisibilityValues)[number];
 export type DeviceTrustState = (typeof deviceTrustStateValues)[number];
 export type SessionScope = (typeof sessionScopeValues)[number];
 export type MessageProtection = (typeof messageProtectionValues)[number];
+export type DirectConversationState =
+  (typeof directConversationStateValues)[number];
 export type AttachmentStatus = (typeof attachmentStatusValues)[number];
 export type MessageStatus = (typeof messageStatusValues)[number];
 export type DeviceApprovalStatus = (typeof deviceApprovalStatusValues)[number];
@@ -93,6 +96,7 @@ export const ProfileVisibilitySchema = z.enum(profileVisibilityValues);
 export const DeviceTrustStateSchema = z.enum(deviceTrustStateValues);
 export const SessionScopeSchema = z.enum(sessionScopeValues);
 export const MessageProtectionSchema = z.enum(messageProtectionValues);
+export const DirectConversationStateSchema = z.enum(directConversationStateValues);
 export const AttachmentStatusSchema = z.enum(attachmentStatusValues);
 export const MessageStatusSchema = z.enum(messageStatusValues);
 export const DeviceApprovalStatusSchema = z.enum(deviceApprovalStatusValues);
@@ -275,6 +279,7 @@ export const ConversationSchema = z.object({
   joinCode: z.string().optional(),
   typingUserIds: z.array(z.string()).default([]),
   workspaceId: z.string().optional(),
+  directState: DirectConversationStateSchema.optional(),
 });
 
 export const PresenceSchema = z.object({

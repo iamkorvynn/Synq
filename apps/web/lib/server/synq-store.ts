@@ -92,6 +92,8 @@ const GLOBAL_CONVERSATION_IDS = new Set([
   DEFAULT_ROOM_ID,
   DEFAULT_CHANNEL_ID,
 ]);
+const LEGACY_IMPLICIT_DM_TITLE = "Direct signal";
+const LEGACY_IMPLICIT_DM_SUBTITLE = "Invite-only room";
 
 let pool: Pool | null = null;
 let schemaReady: Promise<void> | null = null;
@@ -317,6 +319,74 @@ function isRecord(value: unknown): value is Record<string, unknown> {
 
 function pickArray<T>(value: unknown, fallback: T[]) {
   return Array.isArray(value) ? value : fallback;
+}
+
+function isLegacyImplicitDirectConversation(conversation: Conversation) {
+  return (
+    conversation.kind === "dm" &&
+    (conversation.directState === "implicit" ||
+      (conversation.directState === undefined &&
+        conversation.title === LEGACY_IMPLICIT_DM_TITLE &&
+        conversation.subtitle === LEGACY_IMPLICIT_DM_SUBTITLE))
+  );
+}
+
+function conversationHasRealActivity(
+  state: SynqBootstrapState,
+  conversationId: string,
+) {
+  return (
+    state.messages.some((message) => message.conversationId === conversationId) ||
+    state.pinnedMessages.some((pin) => pin.conversationId === conversationId)
+  );
+}
+
+function normalizeDirectConversationState(state: SynqBootstrapState) {
+  const removedConversationIds = new Set(
+    state.conversations
+      .filter(
+        (conversation) =>
+          isLegacyImplicitDirectConversation(conversation) &&
+          !conversationHasRealActivity(state, conversation.id),
+      )
+      .map((conversation) => conversation.id),
+  );
+
+  state.conversations = state.conversations
+    .filter((conversation) => !removedConversationIds.has(conversation.id))
+    .map((conversation) => {
+      if (conversation.kind !== "dm") {
+        return conversation;
+      }
+
+      return {
+        ...conversation,
+        directState:
+          isLegacyImplicitDirectConversation(conversation) &&
+          !conversationHasRealActivity(state, conversation.id)
+            ? "implicit"
+            : "started",
+      };
+    });
+
+  state.conversationMemberships = state.conversationMemberships.filter(
+    (membership) => !removedConversationIds.has(membership.conversationId),
+  );
+  state.typingIndicators = state.typingIndicators.filter(
+    (indicator) => !removedConversationIds.has(indicator.conversationId),
+  );
+  state.messages = state.messages.filter(
+    (message) => !removedConversationIds.has(message.conversationId),
+  );
+  state.pinnedMessages = state.pinnedMessages.filter(
+    (pin) => !removedConversationIds.has(pin.conversationId),
+  );
+  state.reports = state.reports.filter(
+    (report) => !report.conversationId || !removedConversationIds.has(report.conversationId),
+  );
+  state.auditEvents = state.auditEvents.filter(
+    (event) => !event.conversationId || !removedConversationIds.has(event.conversationId),
+  );
 }
 
 function hydratePersistedState(raw: unknown) {
@@ -624,6 +694,7 @@ function stripSeededArtifacts(state: SynqBootstrapState) {
     deviceId: nextState.currentDeviceId,
   };
 
+  normalizeDirectConversationState(nextState);
   syncSharedMembership(nextState);
   return nextState;
 }
@@ -700,7 +771,9 @@ async function ensureSchema() {
 async function loadState() {
   const db = getPool();
   if (!db) {
-    return structuredClone(getMemoryState());
+    const sanitized = stripSeededArtifacts(getMemoryState());
+    globalThis.__synqSharedState = structuredClone(sanitized);
+    return sanitized;
   }
 
   await ensureSchema();
@@ -948,36 +1021,6 @@ function markConversationRead(
   membership.unreadCount = 0;
 }
 
-function ensureDirectMessages(state: SynqBootstrapState, userId: string) {
-  for (const other of state.users) {
-    if (other.id === userId || hasBlockedRelationship(state, userId, other.id)) {
-      continue;
-    }
-
-    const conversationId = buildDmId(userId, other.id);
-    if (state.conversations.some((conversation) => conversation.id === conversationId)) {
-      continue;
-    }
-
-    state.conversations.push(
-      ConversationSchema.parse({
-        id: conversationId,
-        title: "Direct signal",
-        subtitle: "Invite-only room",
-        kind: "dm",
-        visibility: "managed_private",
-        participantIds: [userId, other.id],
-        unreadCount: 0,
-        lastActivityAt: nowIso(),
-        lastMessagePreview: `${other.name} is reachable now.`,
-        messageProtection: "managed_plaintext",
-        aiPolicyOverride: "inherit",
-        ownerUserId: userId,
-      }),
-    );
-  }
-}
-
 function ensureViewer(state: SynqBootstrapState, viewer: ViewerIdentity) {
   let user = state.users.find(
     (candidate) => candidate.linkedEmail?.toLowerCase() === viewer.email.toLowerCase(),
@@ -1028,7 +1071,6 @@ function ensureViewer(state: SynqBootstrapState, viewer: ViewerIdentity) {
     device.trustState = "approved";
   }
 
-  ensureDirectMessages(state, user.id);
   syncSharedMembership(state);
   for (const conversation of state.conversations) {
     if (conversation.participantIds.includes(user.id)) {
@@ -1346,6 +1388,9 @@ export async function createConversationRoom(
       const existingId = buildDmId(ids.userId, others[0]);
       const existing = state.conversations.find((conversation) => conversation.id === existingId);
       if (existing) {
+        if (existing.kind === "dm" && existing.directState !== "started") {
+          existing.directState = "started";
+        }
         markConversationRead(state, existing.id, ids.userId);
         return existing;
       }
@@ -1371,6 +1416,7 @@ export async function createConversationRoom(
       aiPolicyOverride: "inherit",
       ownerUserId: ids.userId,
       joinCode: parsed.kind === "dm" ? undefined : makeJoinCode(),
+      directState: parsed.kind === "dm" ? "started" : undefined,
       workspaceId:
         parsed.kind === "workspace_room" || parsed.kind === "creator_channel"
           ? parsed.workspaceId ?? DEFAULT_WORKSPACE_ID
@@ -1429,7 +1475,6 @@ export async function startDirectConversation(
       throw new Error("You cannot start a direct signal with this account.");
     }
 
-    ensureDirectMessages(state, ids.userId);
     const conversationId = buildDmId(ids.userId, target.id);
     let conversation = state.conversations.find((item) => item.id === conversationId);
 
@@ -1447,8 +1492,11 @@ export async function startDirectConversation(
         messageProtection: "managed_plaintext",
         aiPolicyOverride: "inherit",
         ownerUserId: ids.userId,
+        directState: "started",
       });
       state.conversations.push(conversation);
+    } else if (conversation.kind === "dm" && conversation.directState !== "started") {
+      conversation.directState = "started";
     }
 
     syncSharedMembership(state);
