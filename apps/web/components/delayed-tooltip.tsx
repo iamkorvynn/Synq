@@ -58,9 +58,9 @@ function assignRef<T>(ref: Ref<T> | undefined, value: T) {
 export function DelayedTooltip({
   children,
   content,
-  hoverDelay = 2200,
-  focusDelay = 150,
-  touchDelay = 2200,
+  hoverDelay = 120,
+  focusDelay = 0,
+  touchDelay = 550,
   touchVisibleDuration = 1800,
   offset = 12,
 }: DelayedTooltipProps) {
