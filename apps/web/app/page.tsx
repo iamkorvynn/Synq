@@ -10,8 +10,8 @@ export default function HomePage() {
             The private messenger that feels like it arrived too early.
           </h1>
           <p className="mt-6 max-w-2xl text-lg leading-8 text-white/65">
-            Synq blends end-to-end sealed chat, device trust, local-first AI,
-            and a cinematic spatial interface for creators and tightly knit teams.
+            Synq blends end-to-end sealed chat, device trust,
+            and a cinematic spatial interface for highly secure teams.
           </p>
 
           <div className="mt-10 flex flex-wrap gap-4">
@@ -32,7 +32,7 @@ export default function HomePage() {
           <div className="mt-12 grid gap-4 sm:grid-cols-3">
             {[
               "Ghost handles with optional phone linking",
-              "Local-first AI summaries and memory cards",
+              "Enterprise-grade cryptographic device trust",
               "Spatial motion language with reduced-motion safety",
             ].map((item) => (
               <div
@@ -65,8 +65,8 @@ export default function HomePage() {
             </p>
             <div className="mt-4 space-y-4 text-white/70">
               <p>
-                Chat-first architecture with workspace rooms, creator channels,
-                private groups, offline replay, and explicit AI policy boundaries.
+                Chat-first architecture with workspace rooms,
+                private groups, and offline replay.
               </p>
               <p>
                 The visual system uses depth, motion, and subtle 3D where it adds

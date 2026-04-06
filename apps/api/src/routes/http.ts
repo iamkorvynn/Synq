@@ -1,7 +1,6 @@
 import type { FastifyInstance } from "fastify";
 
 import {
-  AIActionRequestSchema,
   AttachmentFinalizeRequestSchema,
   AttachmentSignRequestSchema,
   AttachmentUploadRequestSchema,
@@ -197,13 +196,6 @@ export async function registerHttpRoutes(
     return reply.send(Buffer.from(payload));
   });
 
-  app.post("/ai/actions", async (request) => {
-    limiter.assertWithinLimit(`ai:${request.ip}`, 20, 60_000);
-    return await store.aiAction(
-      getAuthHeader(request.headers),
-      parseOrThrow(AIActionRequestSchema, request.body),
-    );
-  });
 
   app.get("/discovery/contacts", async (request) => {
     const query = parseOrThrow(DiscoveryQuerySchema, request.query);

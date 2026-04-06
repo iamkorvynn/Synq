@@ -43,7 +43,7 @@ import {
   renameDevice,
   reportMessage,
   revokeDevice,
-  runAIAction,
+  
   sendMessage,
   signAttachment,
   startDirectConversation,
@@ -56,11 +56,7 @@ import {
   putVaultMessage,
   rekeyVaultMessage,
 } from "@/lib/message-vault";
-import {
-  buildRelationshipMemory,
-  rewriteWithGhostMode,
-  summarizeConversation,
-} from "@/lib/local-ai";
+
 import {
   enqueueMessage,
   flushQueuedMessages,
@@ -105,7 +101,7 @@ const QUICK_REACTIONS = [
 const DOCK_TABS: Array<{ id: DockTab; label: string; caption: string }> = [
   { id: "memory", label: "Memory", caption: "Context and pinned signals" },
   { id: "safety", label: "Safety", caption: "Devices, reports, and account controls" },
-  { id: "ai", label: "AI", caption: "Rewrite, workspace pulse, and dock tools" },
+  
 ];
 const ONBOARDING_STEPS: Array<{ id: OnboardingStep; label: string }> = [
   { id: "identity", label: "Identity" },
@@ -344,28 +340,12 @@ function SafetyIcon() {
   );
 }
 
-function AIIcon() {
-  return (
-    <svg
-      aria-hidden="true"
-      viewBox="0 0 20 20"
-      className="h-4.5 w-4.5"
-      fill="none"
-      stroke="currentColor"
-      strokeWidth="1.5"
-      strokeLinecap="round"
-      strokeLinejoin="round"
-    >
-      <path d="m10 3.75 1.55 3.2L15 8.5l-3.45 1.55L10 13.25l-1.55-3.2L5 8.5l3.45-1.55L10 3.75Z" />
-      <path d="m15.25 12.75.8 1.6 1.6.8-1.6.8-.8 1.6-.8-1.6-1.6-.8 1.6-.8.8-1.6Z" />
-    </svg>
-  );
-}
+
 
 function renderDockTabIcon(tab: DockTab) {
   if (tab === "memory") return <MemoryIcon />;
   if (tab === "safety") return <SafetyIcon />;
-  return <AIIcon />;
+  return null;
 }
 
 function MiniDockOrb({
@@ -565,25 +545,9 @@ export function ChatExperience() {
       .map((pin) => resolvedMessages.find((message) => message.id === pin.messageId))
       .filter(Boolean) as MessageEnvelope[];
   }, [resolvedMessages, selectedConversation, state]);
-  const localSummary = useMemo(
-    () =>
-      summarizeConversation(
-        resolvedMessages as MessageEnvelope[],
-        state?.users ?? [],
-        state?.currentUserId ?? "",
-      ),
-    [resolvedMessages, state?.currentUserId, state?.users],
-  );
-  const relationshipMemory = useMemo(
-    () =>
-      buildRelationshipMemory(
-        resolvedMessages as MessageEnvelope[],
-        state?.users ?? [],
-        state?.currentUserId ?? "",
-      ),
-    [resolvedMessages, state?.currentUserId, state?.users],
-  );
-  const ghostRewrite = useMemo(() => rewriteWithGhostMode(deferredDraft), [deferredDraft]);
+  
+  
+  
   const typingUsers = useMemo(
     () =>
       (selectedConversation?.typingUserIds ?? [])

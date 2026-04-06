@@ -7,7 +7,7 @@ import {
   generateDeviceKeyPair,
 } from "@synq/crypto";
 import {
-  type AIActionRequest,
+
   type AttachmentFinalizeRequest,
   type AttachmentObject,
   type AttachmentSignRequest,
@@ -279,32 +279,6 @@ export class TrustedStore {
     };
   }
 
-  private resolveEffectiveAIPolicy(conversation: Conversation) {
-    if (conversation.aiPolicyOverride === "disabled") {
-      return "disabled";
-    }
-
-    if (conversation.aiPolicyOverride !== "inherit") {
-      return conversation.aiPolicyOverride;
-    }
-
-    if (conversation.workspaceId) {
-      const policy = this.state.workspacePolicies.find(
-        (item) => item.workspaceId === conversation.workspaceId,
-      );
-
-      if (policy?.aiPolicy === "disabled") {
-        return "disabled";
-      }
-
-      if (policy?.aiPolicy === "local_only") {
-        return "local";
-      }
-    }
-
-    return conversation.visibility === "e2ee" ? "local" : "ephemeral_cloud";
-  }
-
   async bootstrap(authorization?: string) {
     await this.syncRuntime();
     const session = this.getSessionByAccessToken(parseAuthToken(authorization));
@@ -349,9 +323,12 @@ export class TrustedStore {
         avatar: "S",
         bio: "New private signal entering the network.",
         trustState: "watch" as const,
-        aiPolicy: "local" as const,
+
         ghostMode: false,
         onboardingComplete: false,
+        profileVisibility: "handle_only",
+        hiddenAvatar: false,
+        privateDiscovery: false,
       };
       const device: Device = {
         id: deviceId,
@@ -708,7 +685,7 @@ export class TrustedStore {
     this.state.workspacePolicies.unshift({
       id: policyId,
       workspaceId,
-      aiPolicy: input.aiPolicy === "local" ? "local_only" : "managed_opt_in",
+
       inviteOnly: true,
       retentionDays: 90,
     });
@@ -719,7 +696,7 @@ export class TrustedStore {
       description: input.description,
       ambientScene: input.ambientScene,
       memberCount: 1,
-      aiPolicy: input.aiPolicy,
+
       policyId,
     };
 
@@ -766,7 +743,7 @@ export class TrustedStore {
           ? "Encrypted channel initialized."
           : "Conversation created.",
       messageProtection: protection,
-      aiPolicyOverride: input.visibility === "e2ee" ? "local" : "inherit",
+      typingUserIds: [],
     };
 
     this.state.conversations.unshift(conversation);
@@ -855,6 +832,7 @@ export class TrustedStore {
       status: "sent",
       messageProtection: input.messageProtection,
       mentions: input.mentions,
+      reactions: [],
       replyToId: input.replyToId,
       attachments,
     };
@@ -1058,59 +1036,6 @@ export class TrustedStore {
         : user.name.toLowerCase().includes(normalized) ||
             user.handle.toLowerCase().includes(normalized);
     });
-  }
-
-  async aiAction(authorization: string | undefined, input: AIActionRequest) {
-    await this.syncRuntime();
-    const session = this.getSessionByAccessToken(parseAuthToken(authorization));
-    const conversation = this.getConversation(input.conversationId, session.userId);
-    const effectivePolicy = this.resolveEffectiveAIPolicy(conversation);
-
-    if (effectivePolicy === "disabled") {
-      throw new Error("AI is disabled for this surface.");
-    }
-
-    if (conversation.visibility === "e2ee" && input.policy !== "local") {
-      throw new Error("Cloud AI is forbidden for sealed rooms.");
-    }
-
-    if (effectivePolicy === "local" && input.policy === "ephemeral_cloud") {
-      throw new Error("Workspace policy requires local AI only.");
-    }
-
-    const messages = this.state.messages
-      .filter((message) => message.conversationId === input.conversationId)
-      .map((message) =>
-        conversation.visibility === "e2ee" ? "Encrypted message" : message.preview,
-      );
-
-    const latest = messages.slice(-4);
-
-    if (input.action === "summarize") {
-      return {
-        mode: input.policy,
-        result: `Summary: ${latest.join(" | ") || "No visible managed history."}`,
-      };
-    }
-
-    if (input.action === "translate") {
-      return {
-        mode: input.policy,
-        result: `Translation stub: ${input.input}`,
-      };
-    }
-
-    if (input.action === "memory") {
-      return {
-        mode: input.policy,
-        result: `Memory card: ${latest[0] ?? "No recent history"} -> ${latest.at(-1) ?? "No current signal"}`,
-      };
-    }
-
-    return {
-      mode: input.policy,
-      result: `Rewrite suggestion: ${input.input.slice(0, 140)}`,
-    };
   }
 
   async updatePresence(userId: string, state: Presence["state"], scene: string) {

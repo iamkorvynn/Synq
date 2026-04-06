@@ -11,18 +11,7 @@ export const visibilityValues = [
   "managed_private",
   "managed_broadcast",
 ] as const;
-export const aiPolicyValues = ["local", "ephemeral_cloud", "disabled"] as const;
-export const workspaceAIPolicyValues = [
-  "local_only",
-  "managed_opt_in",
-  "disabled",
-] as const;
-export const conversationAIPolicyOverrideValues = [
-  "inherit",
-  "local",
-  "ephemeral_cloud",
-  "disabled",
-] as const;
+
 export const trustStateValues = ["verified", "watch", "ghost"] as const;
 export const profileVisibilityValues = ["full", "handle_only"] as const;
 export const deviceTrustStateValues = [
@@ -66,10 +55,7 @@ export const realtimeEventValues = [
 
 export type ConversationKind = (typeof conversationKindValues)[number];
 export type Visibility = (typeof visibilityValues)[number];
-export type AIPolicy = (typeof aiPolicyValues)[number];
-export type WorkspaceAIPolicy = (typeof workspaceAIPolicyValues)[number];
-export type ConversationAIPolicyOverride =
-  (typeof conversationAIPolicyOverrideValues)[number];
+
 export type TrustState = (typeof trustStateValues)[number];
 export type ProfileVisibility = (typeof profileVisibilityValues)[number];
 export type DeviceTrustState = (typeof deviceTrustStateValues)[number];
@@ -86,11 +72,7 @@ export type RealtimeEventType = (typeof realtimeEventValues)[number];
 
 export const ConversationKindSchema = z.enum(conversationKindValues);
 export const VisibilitySchema = z.enum(visibilityValues);
-export const AIPolicySchema = z.enum(aiPolicyValues);
-export const WorkspaceAIPolicySchema = z.enum(workspaceAIPolicyValues);
-export const ConversationAIPolicyOverrideSchema = z.enum(
-  conversationAIPolicyOverrideValues,
-);
+
 export const TrustStateSchema = z.enum(trustStateValues);
 export const ProfileVisibilitySchema = z.enum(profileVisibilityValues);
 export const DeviceTrustStateSchema = z.enum(deviceTrustStateValues);
@@ -119,7 +101,7 @@ export const UserSchema = z.object({
   avatar: z.string(),
   bio: z.string(),
   trustState: TrustStateSchema,
-  aiPolicy: AIPolicySchema,
+
   ghostMode: z.boolean(),
   profileVisibility: ProfileVisibilitySchema.default("full"),
   hiddenAvatar: z.boolean().default(false),
@@ -180,7 +162,7 @@ export const DeviceApprovalSchema = z.object({
 export const WorkspacePolicySchema = z.object({
   id: z.string(),
   workspaceId: z.string(),
-  aiPolicy: WorkspaceAIPolicySchema,
+
   inviteOnly: z.boolean(),
   retentionDays: z.number(),
 });
@@ -192,7 +174,7 @@ export const WorkspaceSchema = z.object({
   description: z.string(),
   ambientScene: z.string(),
   memberCount: z.number(),
-  aiPolicy: AIPolicySchema,
+
   policyId: z.string(),
 });
 
@@ -274,7 +256,7 @@ export const ConversationSchema = z.object({
   lastActivityAt: z.string(),
   lastMessagePreview: z.string(),
   messageProtection: MessageProtectionSchema,
-  aiPolicyOverride: ConversationAIPolicyOverrideSchema,
+
   ownerUserId: z.string().optional(),
   joinCode: z.string().optional(),
   typingUserIds: z.array(z.string()).default([]),
@@ -430,7 +412,7 @@ export const WorkspaceCreateRequestSchema = z.object({
   slug: z.string().min(2),
   description: z.string().min(4),
   ambientScene: z.string().min(2),
-  aiPolicy: AIPolicySchema,
+
 });
 
 export const ConversationCreateRequestSchema = z.object({
@@ -511,12 +493,6 @@ export const ReadinessResponseSchema = z.object({
   at: z.string(),
 });
 
-export const AIActionRequestSchema = z.object({
-  conversationId: z.string(),
-  action: z.enum(["summarize", "translate", "memory", "rewrite"]),
-  policy: AIPolicySchema,
-  input: z.string(),
-});
 
 export const DiscoveryQuerySchema = z.object({
   query: z.string().optional(),
@@ -679,7 +655,7 @@ export type AttachmentUploadResponse = z.infer<
 export type AttachmentSignResponse = z.infer<
   typeof AttachmentSignResponseSchema
 >;
-export type AIActionRequest = z.infer<typeof AIActionRequestSchema>;
+
 export type ProfileUpdateRequest = z.infer<typeof ProfileUpdateRequestSchema>;
 export type SendMessageRequest = z.infer<typeof SendMessageRequestSchema>;
 export type MessageReactionRequest = z.infer<typeof MessageReactionRequestSchema>;
@@ -728,7 +704,6 @@ export const HTTP_CONTRACTS = [
   "/attachments/:attachmentId/upload",
   "/attachments/:attachmentId/content",
   "/attachments/finalize",
-  "/ai/actions",
   "/discovery/contacts",
 ] as const;
 
@@ -757,7 +732,7 @@ export function createDemoState(): SynqBootstrapState {
       avatar: "N",
       bio: "Building sovereign communication for creators and private teams.",
       trustState: "verified",
-      aiPolicy: "local",
+
       ghostMode: true,
       profileVisibility: "handle_only",
       hiddenAvatar: false,
@@ -773,7 +748,7 @@ export function createDemoState(): SynqBootstrapState {
       avatar: "A",
       bio: "Visual systems, motion grammar, impossible interfaces.",
       trustState: "verified",
-      aiPolicy: "local",
+
       ghostMode: false,
       profileVisibility: "full",
       hiddenAvatar: false,
@@ -788,7 +763,7 @@ export function createDemoState(): SynqBootstrapState {
       avatar: "K",
       bio: "Creator infrastructure, rituals, rooms, moderation.",
       trustState: "watch",
-      aiPolicy: "ephemeral_cloud",
+
       ghostMode: false,
       profileVisibility: "full",
       hiddenAvatar: false,
@@ -884,14 +859,14 @@ export function createDemoState(): SynqBootstrapState {
     {
       id: "policy_synq",
       workspaceId: "ws_synq",
-      aiPolicy: "local_only",
+
       inviteOnly: true,
       retentionDays: 90,
     },
     {
       id: "policy_ghost",
       workspaceId: "ws_ghost",
-      aiPolicy: "managed_opt_in",
+
       inviteOnly: false,
       retentionDays: 365,
     },
@@ -905,7 +880,7 @@ export function createDemoState(): SynqBootstrapState {
       description: "Private operating room for launch, protocol, and product rituals.",
       ambientScene: "Aurora Vault",
       memberCount: 18,
-      aiPolicy: "local",
+
       policyId: "policy_synq",
     },
     {
@@ -915,7 +890,7 @@ export function createDemoState(): SynqBootstrapState {
       description: "Creator-facing broadcast surface with premium discovery mechanics.",
       ambientScene: "Coral Drift",
       memberCount: 143,
-      aiPolicy: "ephemeral_cloud",
+
       policyId: "policy_ghost",
     },
   ];
@@ -948,7 +923,7 @@ export function createDemoState(): SynqBootstrapState {
       lastActivityAt: relative(2),
       lastMessagePreview: "Encrypted message",
       messageProtection: "ratcheted",
-      aiPolicyOverride: "local",
+
       ownerUserId: currentUserId,
       typingUserIds: [],
     },
@@ -964,7 +939,7 @@ export function createDemoState(): SynqBootstrapState {
       lastActivityAt: relative(9),
       lastMessagePreview: "Encrypted message",
       messageProtection: "sender_key",
-      aiPolicyOverride: "local",
+
       ownerUserId: currentUserId,
       joinCode: "CORE01",
       typingUserIds: [],
@@ -980,7 +955,7 @@ export function createDemoState(): SynqBootstrapState {
       lastActivityAt: relative(15),
       lastMessagePreview: "Pinned the final rollout deck and policy audit.",
       messageProtection: "managed_plaintext",
-      aiPolicyOverride: "inherit",
+
       ownerUserId: currentUserId,
       joinCode: "LAUNCH",
       typingUserIds: [],
@@ -997,7 +972,7 @@ export function createDemoState(): SynqBootstrapState {
       lastActivityAt: relative(20),
       lastMessagePreview: "Tonight we open the vault.",
       messageProtection: "managed_plaintext",
-      aiPolicyOverride: "ephemeral_cloud",
+
       ownerUserId: currentUserId,
       joinCode: "GHOST1",
       typingUserIds: [],

@@ -2,7 +2,6 @@
 
 import type {
   AccountDeleteRequest,
-  AIActionRequest,
   ConversationCreateRequest,
   ConversationJoinRequest,
   ConversationTypingRequest,
@@ -134,12 +133,6 @@ export async function sendMessage(payload: SendMessageRequest) {
   );
 }
 
-export async function runAIAction(payload: AIActionRequest) {
-  return request<{ mode: string; result: string }>("/ai/actions", {
-    method: "POST",
-    body: JSON.stringify(payload),
-  });
-}
 
 export async function completeOnboarding(payload: OnboardingRequest) {
   return request("/onboarding", {

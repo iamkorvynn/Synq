@@ -143,23 +143,4 @@ describe("synq api", () => {
     expect(downloaded.body).toBe("sealed attachment");
   });
 
-  it("rejects cloud ai for sealed rooms", async () => {
-    const accessToken = await authenticate(app);
-    const response = await app.inject({
-      method: "POST",
-      url: "/ai/actions",
-      headers: {
-        authorization: `Bearer ${accessToken}`,
-      },
-      payload: {
-        conversationId: "conv_dm_arya",
-        action: "summarize",
-        policy: "ephemeral_cloud",
-        input: "hello",
-      },
-    });
-
-    expect(response.statusCode).toBe(400);
-    expect(response.json().error).toMatch(/Cloud AI is forbidden/);
-  });
 });
