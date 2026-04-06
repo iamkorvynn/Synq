@@ -1,6 +1,7 @@
 ﻿"use client";
 
 import {
+  type MouseEvent as ReactMouseEvent,
   startTransition,
   useEffect,
   useMemo,
@@ -838,6 +839,39 @@ export function ChatExperience() {
     }, 3500);
   }
 
+  function updateUtilitiesLayerPosition(target?: HTMLElement | null) {
+    const button = target ?? utilitiesButtonRef.current;
+    if (!button) return;
+
+    const rect = button.getBoundingClientRect();
+    const viewportPadding = 12;
+    const width = Math.min(384, window.innerWidth - viewportPadding * 2);
+    const left = Math.min(
+      Math.max(rect.right - width, viewportPadding),
+      window.innerWidth - width - viewportPadding,
+    );
+    const top = Math.min(
+      rect.bottom + 10,
+      window.innerHeight - viewportPadding,
+    );
+
+    setUtilitiesLayerPosition({ left, top, width });
+  }
+
+  function handleToggleUtilities(event: ReactMouseEvent<HTMLButtonElement>) {
+    if (isUtilitiesOpen) {
+      setIsUtilitiesOpen(false);
+      return;
+    }
+
+    updateUtilitiesLayerPosition(event.currentTarget);
+    setIsUtilitiesOpen(true);
+  }
+
+  function handleUtilitiesViewportChange() {
+    updateUtilitiesLayerPosition();
+  }
+
   function scrollConversationToLatest(behavior: ScrollBehavior = "smooth") {
     const container = messageListRef.current;
     if (!container) return;
@@ -1021,25 +1055,6 @@ export function ChatExperience() {
       return;
     }
 
-    function updateUtilitiesLayerPosition() {
-      const button = utilitiesButtonRef.current;
-      if (!button) return;
-
-      const rect = button.getBoundingClientRect();
-      const viewportPadding = 12;
-      const width = Math.min(384, window.innerWidth - viewportPadding * 2);
-      const left = Math.min(
-        Math.max(rect.right - width, viewportPadding),
-        window.innerWidth - width - viewportPadding,
-      );
-      const top = Math.min(
-        rect.bottom + 10,
-        window.innerHeight - viewportPadding,
-      );
-
-      setUtilitiesLayerPosition({ left, top, width });
-    }
-
     const frame = window.requestAnimationFrame(() => {
       updateUtilitiesLayerPosition();
     });
@@ -1050,14 +1065,14 @@ export function ChatExperience() {
       }
     }
 
-    window.addEventListener("resize", updateUtilitiesLayerPosition);
-    window.addEventListener("scroll", updateUtilitiesLayerPosition, true);
+    window.addEventListener("resize", handleUtilitiesViewportChange);
+    window.addEventListener("scroll", handleUtilitiesViewportChange, true);
     window.addEventListener("keydown", handleEscape);
 
     return () => {
       window.cancelAnimationFrame(frame);
-      window.removeEventListener("resize", updateUtilitiesLayerPosition);
-      window.removeEventListener("scroll", updateUtilitiesLayerPosition, true);
+      window.removeEventListener("resize", handleUtilitiesViewportChange);
+      window.removeEventListener("scroll", handleUtilitiesViewportChange, true);
       window.removeEventListener("keydown", handleEscape);
     };
   }, [isUtilitiesOpen]);
@@ -2376,7 +2391,7 @@ export function ChatExperience() {
                     aria-label="Open conversation tools"
                     aria-expanded={isUtilitiesOpen}
                     aria-haspopup="dialog"
-                    onClick={() => setIsUtilitiesOpen((current) => !current)}
+                    onClick={handleToggleUtilities}
                     className="rounded-full border border-white/10 bg-white/[0.05] px-4 py-2 text-sm text-white/78 transition hover:border-white/18 hover:bg-white/[0.08]"
                   >
                     Tools
