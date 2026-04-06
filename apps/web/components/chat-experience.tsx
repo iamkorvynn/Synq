@@ -1,14 +1,12 @@
 ﻿"use client";
 
 import {
-  type MouseEvent as ReactMouseEvent,
   startTransition,
   useEffect,
   useMemo,
   useRef,
   useState,
 } from "react";
-import { createPortal } from "react-dom";
 import { useSearchParams } from "next/navigation";
 import { signIn, signOut, useSession } from "next-auth/react";
 import { AnimatePresence, motion, useReducedMotion } from "framer-motion";
@@ -72,7 +70,6 @@ type AuthStage = "loading" | "signed_out" | "ready";
 type ToastTone = "success" | "error" | "info";
 type DockTab = "memory" | "safety";
 type OnboardingStep = "identity" | "privacy" | "enter";
-type UtilitiesLayerPosition = { left: number; top: number; width: number };
 
 type ToastState = { id: string; tone: ToastTone; message: string };
 
@@ -445,13 +442,10 @@ export function ChatExperience() {
   const typingTimeoutRef = useRef<ReturnType<typeof setTimeout> | null>(null);
   const mediaRecorderRef = useRef<MediaRecorder | null>(null);
   const searchInputRef = useRef<HTMLInputElement | null>(null);
-  const utilitiesRef = useRef<HTMLDivElement | null>(null);
   const utilitiesButtonRef = useRef<HTMLButtonElement | null>(null);
   const utilitiesPanelRef = useRef<HTMLDivElement | null>(null);
   const profileFlyoutRef = useRef<HTMLDivElement | null>(null);
   const messageListRef = useRef<HTMLDivElement | null>(null);
-  const [utilitiesLayerPosition, setUtilitiesLayerPosition] =
-    useState<UtilitiesLayerPosition | null>(null);
 
   const currentUser = useMemo(
     () => state?.users.find((user) => user.id === state.currentUserId) ?? null,
@@ -840,37 +834,8 @@ export function ChatExperience() {
     }, 3500);
   }
 
-  function updateUtilitiesLayerPosition(target?: HTMLElement | null) {
-    const button = target ?? utilitiesButtonRef.current;
-    if (!button) return;
-
-    const rect = button.getBoundingClientRect();
-    const viewportPadding = 12;
-    const width = Math.min(384, window.innerWidth - viewportPadding * 2);
-    const left = Math.min(
-      Math.max(rect.right - width, viewportPadding),
-      window.innerWidth - width - viewportPadding,
-    );
-    const top = Math.min(
-      rect.bottom + 10,
-      window.innerHeight - viewportPadding,
-    );
-
-    setUtilitiesLayerPosition({ left, top, width });
-  }
-
-  function handleToggleUtilities(event: ReactMouseEvent<HTMLButtonElement>) {
-    if (isUtilitiesOpen) {
-      setIsUtilitiesOpen(false);
-      return;
-    }
-
-    updateUtilitiesLayerPosition(event.currentTarget);
-    setIsUtilitiesOpen(true);
-  }
-
-  function handleUtilitiesViewportChange() {
-    updateUtilitiesLayerPosition();
+  function handleToggleUtilities() {
+    setIsUtilitiesOpen((current) => !current);
   }
 
   function scrollConversationToLatest(behavior: ScrollBehavior = "smooth") {
@@ -1052,13 +1017,8 @@ export function ChatExperience() {
 
   useEffect(() => {
     if (!isUtilitiesOpen) {
-      setUtilitiesLayerPosition(null);
       return;
     }
-
-    const frame = window.requestAnimationFrame(() => {
-      updateUtilitiesLayerPosition();
-    });
 
     function handleEscape(event: KeyboardEvent) {
       if (event.key === "Escape") {
@@ -1083,16 +1043,11 @@ export function ChatExperience() {
       setIsUtilitiesOpen(false);
     }
 
-    window.addEventListener("resize", handleUtilitiesViewportChange);
-    window.addEventListener("scroll", handleUtilitiesViewportChange, true);
     window.addEventListener("keydown", handleEscape);
     document.addEventListener("mousedown", handlePointerDown);
     document.addEventListener("touchstart", handlePointerDown, { passive: true });
 
     return () => {
-      window.cancelAnimationFrame(frame);
-      window.removeEventListener("resize", handleUtilitiesViewportChange);
-      window.removeEventListener("scroll", handleUtilitiesViewportChange, true);
       window.removeEventListener("keydown", handleEscape);
       document.removeEventListener("mousedown", handlePointerDown);
       document.removeEventListener("touchstart", handlePointerDown);
@@ -2406,119 +2361,125 @@ export function ChatExperience() {
                 </StatusPill>
                 {queueCount ? <StatusPill tone="coral">{queueCount} queued</StatusPill> : null}
                 {typingUsers.length ? <StatusPill tone="mint">live typing</StatusPill> : null}
-                <div className="relative" ref={utilitiesRef}>
+                <div className="relative">
                   <button
                     ref={utilitiesButtonRef}
                     type="button"
                     aria-label="Open conversation tools"
                     aria-expanded={isUtilitiesOpen}
                     aria-haspopup="dialog"
+                    aria-controls="conversation-tools-panel"
                     onClick={handleToggleUtilities}
                     className="rounded-full border border-white/10 bg-white/[0.05] px-4 py-2 text-sm text-white/78 transition hover:border-white/18 hover:bg-white/[0.08]"
                   >
                     Tools
                   </button>
-                  <AnimatePresence initial={false}>
-                    {isUtilitiesOpen &&
-                    utilitiesLayerPosition &&
-                    typeof document !== "undefined"
-                      ? createPortal(
-                          <motion.div
-                            ref={utilitiesPanelRef}
-                            initial={reduceMotion ? false : { opacity: 0, y: -8 }}
-                            animate={{ opacity: 1, y: 0 }}
-                            exit={reduceMotion ? undefined : { opacity: 0, y: -6 }}
-                            transition={reduceMotion ? undefined : motionTokens.spring}
-                            role="dialog"
-                            aria-label="Conversation tools"
-                            className="fixed z-[71] rounded-[22px] border border-white/12 bg-[#09111C] p-2 shadow-[0_24px_70px_rgba(0,0,0,0.52)]"
-                            style={{
-                              left: utilitiesLayerPosition.left,
-                              top: utilitiesLayerPosition.top,
-                              width: utilitiesLayerPosition.width,
-                              maxHeight: `calc(100vh - ${utilitiesLayerPosition.top + 12}px)`,
-                            }}
-                          >
-                            <div className="synq-scroll synq-scroll--subtle max-h-[70vh] overflow-y-auto pr-1">
-                              <div className="rounded-[18px] border border-white/10 bg-[#0E1724] p-3">
-                                <div className="flex items-center justify-between gap-3">
-                                  <div>
-                                    <p className="text-sm font-medium text-white">Members</p>
-                                    <p className="mt-1 text-xs text-white/48">
-                                      {selectedConversationMembers.length} in this conversation
-                                    </p>
-                                  </div>
-                                  {selectedConversationOwnerId ? (
-                                    <StatusPill tone="cyan">Owner managed</StatusPill>
-                                  ) : null}
-                                </div>
-                                <div className="mt-3 flex flex-wrap gap-2">
-                                  {selectedConversationMembers.length ? (
-                                    selectedConversationMembers.map((member) => (
-                                      <div
-                                        key={member.id}
-                                        className="rounded-[18px] border border-white/10 bg-[#121C2B] px-3 py-2"
-                                      >
-                                        <div className="flex items-center gap-2">
-                                          <div className="flex h-8 w-8 items-center justify-center rounded-2xl bg-white/[0.08] text-xs font-semibold text-white">
-                                            {displayAvatar(member)}
-                                          </div>
-                                          <div className="min-w-0">
-                                            <p className="truncate text-sm text-white">
-                                              {displayIdentity(member)}
-                                            </p>
-                                            <div className="mt-1 flex flex-wrap gap-1">
-                                              {selectedConversationOwnerId === member.id ? (
-                                                <span className="rounded-full border border-[#5DE4FF]/25 px-2 py-0.5 text-[10px] tracking-[0.12em] text-[#AEEFFF]">
-                                                  OWNER
-                                                </span>
-                                              ) : null}
-                                              {currentUser?.id === member.id ? (
-                                                <span className="rounded-full border border-white/10 px-2 py-0.5 text-[10px] tracking-[0.12em] text-white/58">
-                                                  YOU
-                                                </span>
-                                              ) : null}
-                                            </div>
-                                          </div>
-                                        </div>
-                                      </div>
-                                    ))
-                                  ) : (
-                                    <p className="text-sm text-white/55">No members are visible yet.</p>
-                                  )}
-                                </div>
-                              </div>
-                              <button
-                                type="button"
-                                onClick={handleOpenSearchFromUtilities}
-                                className="mt-2 w-full rounded-[16px] border border-white/10 bg-[#0E1724] px-3 py-3 text-left text-sm text-white/82 transition hover:border-white/16 hover:bg-[#122032]"
-                              >
-                                Search messages
-                              </button>
-                              {selectedConversation?.kind !== "dm" ? (
-                                canDeleteSelectedRoom ? (
-                                  <button
-                                    type="button"
-                                    onClick={() => void handleDeleteSelectedRoom()}
-                                    className="mt-2 w-full rounded-[16px] border border-[#FF7A6E]/30 bg-[#241214] px-3 py-3 text-left text-sm text-[#FFD1CB] transition hover:border-[#FF7A6E]/40 hover:bg-[#2C1518]"
-                                  >
-                                    Delete room
-                                  </button>
-                                ) : (
-                                  <p className="mt-2 px-3 py-2 text-xs text-white/46">
-                                    Only the room owner can delete this room.
-                                  </p>
-                                )
-                              ) : null}
-                            </div>
-                          </motion.div>,
-                          document.body,
-                        )
-                      : null}
-                  </AnimatePresence>
                 </div>
               </div>
             </div>
+            <AnimatePresence initial={false}>
+              {isUtilitiesOpen ? (
+                <motion.div
+                  ref={utilitiesPanelRef}
+                  id="conversation-tools-panel"
+                  initial={reduceMotion ? false : { opacity: 0, height: 0, y: -8 }}
+                  animate={{ opacity: 1, height: "auto", y: 0 }}
+                  exit={reduceMotion ? undefined : { opacity: 0, height: 0, y: -6 }}
+                  transition={reduceMotion ? undefined : motionTokens.spring}
+                  role="dialog"
+                  aria-label="Conversation tools"
+                  className="overflow-hidden border-b border-white/8 bg-[#09111C]/92 px-5 pb-4 backdrop-blur-xl"
+                >
+                  <div className="synq-scroll synq-scroll--subtle max-h-[min(45vh,28rem)] overflow-y-auto pr-1">
+                    <div className="rounded-[22px] border border-white/10 bg-[#0E1724] p-3">
+                      <div className="flex flex-wrap items-center justify-between gap-3">
+                        <div>
+                          <p className="text-sm font-medium text-white">Members</p>
+                          <p className="mt-1 text-xs text-white/48">
+                            {selectedConversationMembers.length} in this conversation
+                          </p>
+                        </div>
+                        <div className="flex flex-wrap items-center gap-2">
+                          {selectedConversationOwnerId ? (
+                            <StatusPill tone="cyan">Owner managed</StatusPill>
+                          ) : null}
+                          <button
+                            type="button"
+                            onClick={() => setIsUtilitiesOpen(false)}
+                            className="rounded-full border border-white/10 px-3 py-1.5 text-xs text-white/58 transition hover:border-white/18 hover:text-white"
+                          >
+                            Close
+                          </button>
+                        </div>
+                      </div>
+                      <div className="mt-3 flex flex-wrap gap-2">
+                        {selectedConversationMembers.length ? (
+                          selectedConversationMembers.map((member) => (
+                            <div
+                              key={member.id}
+                              className="rounded-[18px] border border-white/10 bg-[#121C2B] px-3 py-2"
+                            >
+                              <div className="flex items-center gap-2">
+                                <div className="flex h-8 w-8 items-center justify-center rounded-2xl bg-white/[0.08] text-xs font-semibold text-white">
+                                  {displayAvatar(member)}
+                                </div>
+                                <div className="min-w-0">
+                                  <p className="truncate text-sm text-white">
+                                    {displayIdentity(member)}
+                                  </p>
+                                  <div className="mt-1 flex flex-wrap gap-1">
+                                    {selectedConversationOwnerId === member.id ? (
+                                      <span className="rounded-full border border-[#5DE4FF]/25 px-2 py-0.5 text-[10px] tracking-[0.12em] text-[#AEEFFF]">
+                                        OWNER
+                                      </span>
+                                    ) : null}
+                                    {currentUser?.id === member.id ? (
+                                      <span className="rounded-full border border-white/10 px-2 py-0.5 text-[10px] tracking-[0.12em] text-white/58">
+                                        YOU
+                                      </span>
+                                    ) : null}
+                                  </div>
+                                </div>
+                              </div>
+                            </div>
+                          ))
+                        ) : (
+                          <p className="text-sm text-white/55">No members are visible yet.</p>
+                        )}
+                      </div>
+                    </div>
+                    <div className="mt-2 grid gap-2 md:grid-cols-[minmax(0,1fr)_minmax(0,1fr)]">
+                      <button
+                        type="button"
+                        onClick={handleOpenSearchFromUtilities}
+                        className="w-full rounded-[16px] border border-white/10 bg-[#0E1724] px-3 py-3 text-left text-sm text-white/82 transition hover:border-white/16 hover:bg-[#122032]"
+                      >
+                        Search messages
+                      </button>
+                      {selectedConversation?.kind !== "dm" ? (
+                        canDeleteSelectedRoom ? (
+                          <button
+                            type="button"
+                            onClick={() => void handleDeleteSelectedRoom()}
+                            className="w-full rounded-[16px] border border-[#FF7A6E]/30 bg-[#241214] px-3 py-3 text-left text-sm text-[#FFD1CB] transition hover:border-[#FF7A6E]/40 hover:bg-[#2C1518]"
+                          >
+                            Delete room
+                          </button>
+                        ) : (
+                          <div className="rounded-[16px] border border-white/8 bg-white/[0.03] px-3 py-3 text-xs text-white/46">
+                            Only the room owner can delete this room.
+                          </div>
+                        )
+                      ) : (
+                        <div className="rounded-[16px] border border-white/8 bg-white/[0.03] px-3 py-3 text-xs text-white/46">
+                          Direct signals keep room tools focused on search and members.
+                        </div>
+                      )}
+                    </div>
+                  </div>
+                </motion.div>
+              ) : null}
+            </AnimatePresence>
             <AnimatePresence initial={false}>
               {isSearchOpen ? (
                 <motion.div
