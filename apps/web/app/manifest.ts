@@ -5,7 +5,7 @@ export default function manifest(): MetadataRoute.Manifest {
     name: "Synq",
     short_name: "Synq",
     description:
-      "A cinematic private messenger for creators and teams with ghost mode, trust-first rooms, and friend-ready chat.",
+      "Synq is a secure messenger for teams with room-code access, device trust controls, encrypted attachments, and offline replay.",
     start_url: "/chat",
     display: "standalone",
     background_color: "#070B12",

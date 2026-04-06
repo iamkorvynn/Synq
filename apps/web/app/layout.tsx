@@ -16,16 +16,18 @@ const body = Manrope({
   variable: "--font-body",
 });
 
+const siteDescription =
+  "Synq is a secure messenger for teams with room-code access, device trust controls, encrypted attachments, and offline replay.";
+
 export const metadata: Metadata = {
   metadataBase: new URL(
     process.env.NEXT_PUBLIC_APP_URL ?? "https://synq-app.vercel.app",
   ),
   title: {
     default: "Synq",
-    template: "%s · Synq",
+    template: "%s | Synq",
   },
-  description:
-    "A cinematic private messenger for creators and teams, built for trust-first communication.",
+  description: siteDescription,
   manifest: "/manifest.webmanifest",
   applicationName: "Synq",
   appleWebApp: {
@@ -39,17 +41,15 @@ export const metadata: Metadata = {
   },
   openGraph: {
     title: "Synq",
-    description:
-      "Private cinematic messaging with ghost mode, live rooms, and trust-first collaboration.",
+    description: siteDescription,
     type: "website",
-    url: "/chat",
+    url: "/",
     images: [{ url: "/opengraph-image", width: 1200, height: 630, alt: "Synq" }],
   },
   twitter: {
     card: "summary_large_image",
     title: "Synq",
-    description:
-      "Private cinematic messaging with ghost mode, live rooms, and trust-first collaboration.",
+    description: siteDescription,
     images: ["/opengraph-image"],
   },
 };
