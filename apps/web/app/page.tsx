@@ -4,14 +4,14 @@ export default function HomePage() {
       <div className="mx-auto grid max-w-7xl gap-8 lg:grid-cols-[1.1fr_0.9fr]">
         <section className="rounded-[40px] border border-white/10 bg-white/[0.04] p-8 shadow-[0_30px_120px_rgba(0,0,0,0.4)] backdrop-blur-2xl sm:p-12">
           <p className="text-xs uppercase tracking-[0.4em] text-[#5DE4FF]">
-            Synq private beta
+            Synq secure release
           </p>
           <h1 className="mt-6 max-w-3xl font-[family-name:var(--font-display)] text-5xl leading-[0.95] text-white sm:text-7xl">
-            The private messenger that feels like it arrived too early.
+            A premium messenger for teams that treat privacy like infrastructure.
           </h1>
           <p className="mt-6 max-w-2xl text-lg leading-8 text-white/65">
-            Synq blends end-to-end sealed chat, device trust,
-            and a cinematic spatial interface for highly secure teams.
+            Synq pairs end-to-end sealed chat, verified device trust,
+            and a cinematic control room for highly secure teams.
           </p>
 
           <div className="mt-10 flex flex-wrap gap-4">
@@ -22,7 +22,7 @@ export default function HomePage() {
               Enter the vault
             </a>
             <span className="rounded-full border border-white/12 px-6 py-3 text-white/70">
-              Google invite auth
+              Invite-only onboarding
             </span>
             <span className="rounded-full border border-white/12 px-6 py-3 text-white/70">
               Web + PWA launch
@@ -31,9 +31,9 @@ export default function HomePage() {
 
           <div className="mt-12 grid gap-4 sm:grid-cols-3">
             {[
-              "Ghost handles with optional phone linking",
-              "Enterprise-grade cryptographic device trust",
-              "Spatial motion language with reduced-motion safety",
+              "Verified devices and workspace trust controls",
+              "Encrypted attachments with strict upload-finalize discipline",
+              "Spatial motion design built for calm high-stakes coordination",
             ].map((item) => (
               <div
                 key={item}
@@ -54,8 +54,8 @@ export default function HomePage() {
                 Trust layer
               </p>
               <p className="mt-2 text-sm leading-6 text-white/68">
-                The cinematic 3D orb is reserved for the authenticated app shell so
-                the public landing page stays fast, stable, and chunk-light.
+                The cinematic 3D orb is reserved for the authenticated team workspace so
+                the public landing page stays fast, stable, and intentionally lightweight.
               </p>
             </div>
           </div>
@@ -65,12 +65,12 @@ export default function HomePage() {
             </p>
             <div className="mt-4 space-y-4 text-white/70">
               <p>
-                Chat-first architecture with workspace rooms,
-                private groups, and offline replay.
+                Chat-first architecture with secure team rooms,
+                private groups, announcement channels, and offline replay.
               </p>
               <p>
-                The visual system uses depth, motion, and subtle 3D where it adds
-                trust and atmosphere, not noise.
+                The visual system uses depth, motion, and subtle 3D only where it
+                reinforces trust, focus, and operator calm.
               </p>
             </div>
           </div>

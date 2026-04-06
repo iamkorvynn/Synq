@@ -2,7 +2,6 @@
 
 import {
   startTransition,
-  useDeferredValue,
   useEffect,
   useMemo,
   useRef,
@@ -43,7 +42,6 @@ import {
   renameDevice,
   reportMessage,
   revokeDevice,
-  
   sendMessage,
   signAttachment,
   startDirectConversation,
@@ -68,7 +66,7 @@ import { TrustOrb } from "./trust-orb";
 
 type AuthStage = "loading" | "signed_out" | "ready";
 type ToastTone = "success" | "error" | "info";
-type DockTab = "memory" | "safety" | "ai";
+type DockTab = "memory" | "safety";
 type OnboardingStep = "identity" | "privacy" | "enter";
 
 type ToastState = { id: string; tone: ToastTone; message: string };
@@ -101,7 +99,6 @@ const QUICK_REACTIONS = [
 const DOCK_TABS: Array<{ id: DockTab; label: string; caption: string }> = [
   { id: "memory", label: "Memory", caption: "Context and pinned signals" },
   { id: "safety", label: "Safety", caption: "Devices, reports, and account controls" },
-  
 ];
 const ONBOARDING_STEPS: Array<{ id: OnboardingStep; label: string }> = [
   { id: "identity", label: "Identity" },
@@ -433,7 +430,6 @@ export function ChatExperience() {
   const [roomHandles, setRoomHandles] = useState("");
   const [deviceLabels, setDeviceLabels] = useState<Record<string, string>>({});
   const [toasts, setToasts] = useState<ToastState[]>([]);
-  const [cloudResult, setCloudResult] = useState("");
   const [recordingVoice, setRecordingVoice] = useState(false);
   const [activeDockTab, setActiveDockTab] = useState<DockTab>("memory");
   const [onboardingStep, setOnboardingStep] = useState<OnboardingStep>("identity");
@@ -441,7 +437,6 @@ export function ChatExperience() {
   const [isMobileIdentityOpen, setIsMobileIdentityOpen] = useState(false);
   const [isDockCollapsed, setIsDockCollapsed] = useState(true);
   const [isProfileFlyoutOpen, setIsProfileFlyoutOpen] = useState(false);
-  const deferredDraft = useDeferredValue(draft);
   const typingTimeoutRef = useRef<ReturnType<typeof setTimeout> | null>(null);
   const mediaRecorderRef = useRef<MediaRecorder | null>(null);
   const searchInputRef = useRef<HTMLInputElement | null>(null);
@@ -545,9 +540,10 @@ export function ChatExperience() {
       .map((pin) => resolvedMessages.find((message) => message.id === pin.messageId))
       .filter(Boolean) as MessageEnvelope[];
   }, [resolvedMessages, selectedConversation, state]);
-  
-  
-  
+  const recentSignals = useMemo(
+    () => resolvedMessages.slice(-3).reverse(),
+    [resolvedMessages],
+  );
   const typingUsers = useMemo(
     () =>
       (selectedConversation?.typingUserIds ?? [])
@@ -641,7 +637,7 @@ export function ChatExperience() {
               <p className="mt-2 text-sm leading-6 text-white/58">
                 {profileDraft.privateDiscovery
                   ? "Private discovery is on. Exact handles work best."
-                  : profileDraft.bio || "Tune your presence before you invite friends in."}
+                  : profileDraft.bio || "Tune your presence before you invite trusted teammates in."}
               </p>
             </div>
           </div>
@@ -691,7 +687,7 @@ export function ChatExperience() {
               </div>
             ) : (
               <div className="rounded-[20px] border border-dashed border-white/10 bg-white/[0.03] px-3 py-4 text-sm text-white/55">
-                Search by handle to start private signals with friends.
+                Search by handle to start private signals with trusted teammates.
               </div>
             )}
           </div>
@@ -1377,33 +1373,6 @@ export function ChatExperience() {
     } catch {
       pushToast("error", "Synq could not save your profile.");
     }
-  }
-
-  async function handleWorkspaceAI() {
-    if (!selectedConversation || !currentUser) return;
-    try {
-      if (selectedConversation.visibility === "e2ee") {
-        setCloudResult(`Local-only insight: ${localSummary}`);
-        pushToast("info", "Sealed-room AI stayed on this device.");
-        return;
-      }
-
-      const result = await runAIAction({
-        conversationId: selectedConversation.id,
-        action: "memory",
-        policy: currentUser.aiPolicy,
-        input: draft || selectedConversation.lastMessagePreview,
-      });
-      setCloudResult(result.result);
-      pushToast("success", "Workspace AI pulse refreshed.");
-    } catch {
-      pushToast("error", "Workspace AI is unavailable right now.");
-    }
-  }
-
-  async function handleRefreshAiDock() {
-    setIsUtilitiesOpen(false);
-    await handleWorkspaceAI();
   }
 
   function handleOpenSearchFromUtilities() {
@@ -2333,14 +2302,6 @@ export function ChatExperience() {
                         >
                           Search messages
                         </button>
-                        <button
-                          type="button"
-                          role="menuitem"
-                          onClick={() => void handleRefreshAiDock()}
-                          className="w-full rounded-[16px] px-3 py-3 text-left text-sm text-white/80 transition hover:bg-white/[0.06]"
-                        >
-                          Refresh AI dock
-                        </button>
                       </motion.div>
                     ) : null}
                   </AnimatePresence>
@@ -2648,7 +2609,7 @@ export function ChatExperience() {
                   <div className="rounded-[26px] border border-dashed border-white/10 bg-white/[0.03] px-4 py-10 text-center text-sm leading-6 text-white/55">
                     {messageSearch
                       ? "No messages matched that search."
-                      : "This room is calm right now. Send the first signal or share a join code with your friends."}
+                      : "This room is calm right now. Send the first signal or share a join code with your team."}
                   </div>
                 )}
               </AnimatePresence>
@@ -2731,7 +2692,7 @@ export function ChatExperience() {
               rows={2}
               placeholder={
                 selectedConversation
-                  ? "Write a signal, search memory, or leave a reply..."
+                  ? "Write a signal or leave a reply..."
                   : "Pick a room to start chatting."
               }
               disabled={!selectedConversation}
@@ -2768,16 +2729,6 @@ export function ChatExperience() {
                   }`}
                 >
                   {recordingVoice ? "Stop voice" : "Voice note"}
-                </button>
-                <button
-                  type="button"
-                  onClick={() => {
-                    setDraft(ghostRewrite);
-                    pushToast("info", "Ghost rewrite applied locally.");
-                  }}
-                  className="inline-flex h-10 items-center rounded-full border border-white/10 px-4 text-xs text-white/74 transition hover:border-white/18 hover:text-white"
-                >
-                  Ghost rewrite
                 </button>
               </div>
               <button
@@ -2866,19 +2817,6 @@ export function ChatExperience() {
                 >
                   {renderDockTabIcon("safety")}
                 </button>
-                <button
-                  type="button"
-                  title="AI"
-                  aria-label="Open AI dock tab"
-                  data-active={activeDockTab === "ai"}
-                  onClick={() => {
-                    setActiveDockTab("ai");
-                    setIsDockCollapsed(false);
-                  }}
-                  className="synq-tab flex h-12 w-12 items-center justify-center rounded-[18px] text-white/78"
-                >
-                  {renderDockTabIcon("ai")}
-                </button>
               </div>
             ) : (
               <>
@@ -2916,12 +2854,45 @@ export function ChatExperience() {
                 </div>
                 <div className="mt-4 grid gap-3">
                   <div className="rounded-[20px] border border-white/8 bg-white/[0.03] p-3">
-                    <p className="text-xs uppercase tracking-[0.16em] text-white/40">Summary</p>
-                    <p className="mt-2 text-sm leading-6 text-white/75">{localSummary}</p>
+                    <p className="text-xs uppercase tracking-[0.16em] text-white/40">Room snapshot</p>
+                    <div className="mt-2 grid gap-2 text-sm leading-6 text-white/75">
+                      <p>
+                        {selectedConversation
+                          ? `${selectedConversation.title} is running in ${toneLabel(selectedConversation)} mode.`
+                          : "Pick a room to review its local context."}
+                      </p>
+                      <p>
+                        {selectedConversation?.disappearingSeconds
+                          ? `Disappearing timer: ${Math.round(selectedConversation.disappearingSeconds / 3600)} hours.`
+                          : "Disappearing messages are currently off for this room."}
+                      </p>
+                      <p>
+                        {selectedConversation
+                          ? `${resolvedMessages.length} message${resolvedMessages.length === 1 ? "" : "s"} loaded on this device.`
+                          : "No messages loaded yet."}
+                      </p>
+                    </div>
                   </div>
                   <div className="rounded-[20px] border border-white/8 bg-white/[0.03] p-3">
-                    <p className="text-xs uppercase tracking-[0.16em] text-white/40">Relationship memory</p>
-                    <p className="mt-2 text-sm leading-6 text-white/75">{relationshipMemory}</p>
+                    <p className="text-xs uppercase tracking-[0.16em] text-white/40">Recent activity</p>
+                    <div className="mt-2 grid gap-2">
+                      {recentSignals.length ? (
+                        recentSignals.map((message) => (
+                          <button
+                            key={message.id}
+                            type="button"
+                            onClick={() => openSearchPanel(message.preview)}
+                            className="rounded-[16px] border border-white/10 bg-black/20 px-3 py-3 text-left text-sm text-white/72 transition hover:border-white/18"
+                          >
+                            {message.preview}
+                          </button>
+                        ))
+                      ) : (
+                        <p className="text-sm text-white/55">
+                          Recent signals will appear here as the room fills up.
+                        </p>
+                      )}
+                    </div>
                   </div>
                   <div className="rounded-[20px] border border-white/8 bg-white/[0.03] p-3">
                     <p className="text-xs uppercase tracking-[0.16em] text-white/40">Pinned signals</p>
@@ -2947,42 +2918,6 @@ export function ChatExperience() {
                 </div>
               </GlassCard>
             ) : null}
-            {activeDockTab === "ai" ? (
-              <GlassCard className="p-4">
-            <div className="flex items-center justify-between">
-              <SectionLabel>AI and memory</SectionLabel>
-              <StatusPill tone="coral">
-                {selectedConversation?.visibility === "e2ee" ? "Local only" : "Workspace"}
-              </StatusPill>
-            </div>
-            <div className="mt-4 grid gap-3">
-              <div className="rounded-[20px] border border-white/8 bg-white/[0.03] p-3">
-                <p className="text-xs uppercase tracking-[0.16em] text-white/40">Summary</p>
-                <p className="mt-2 text-sm leading-6 text-white/75">{localSummary}</p>
-              </div>
-              <div className="rounded-[20px] border border-white/8 bg-white/[0.03] p-3">
-                <p className="text-xs uppercase tracking-[0.16em] text-white/40">Ghost rewrite preview</p>
-                <p className="mt-2 text-sm leading-6 text-white/75">
-                  {ghostRewrite || "Start typing to generate a softer, more cinematic rewrite."}
-                </p>
-              </div>
-              <div className="rounded-[20px] border border-white/8 bg-white/[0.03] p-3">
-                <p className="text-xs uppercase tracking-[0.16em] text-white/40">Workspace AI</p>
-                <p className="mt-2 text-sm leading-6 text-white/75">
-                  {cloudResult || "Run the AI dock to generate shared memory cards or local summaries."}
-                </p>
-                <button
-                  type="button"
-                  onClick={() => void handleWorkspaceAI()}
-                  className="mt-4 rounded-full border border-[#5DE4FF]/30 bg-[#5DE4FF]/10 px-4 py-2 text-sm text-white transition hover:border-[#5DE4FF]/42 hover:bg-[#5DE4FF]/14"
-                >
-                  Refresh AI dock
-                </button>
-              </div>
-            </div>
-              </GlassCard>
-            ) : null}
-
             {activeDockTab === "safety" ? (
               <>
           <GlassCard className="p-4">

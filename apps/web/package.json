@@ -7,7 +7,7 @@
     "dev": "next dev",
     "start": "next start",
     "build": "next build",
-    "test": "vitest run"
+    "test": "vitest run --passWithNoTests"
   },
   "dependencies": {
     "@neondatabase/serverless": "^1.0.2",

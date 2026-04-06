@@ -50,12 +50,10 @@ export const realtimeEventValues = [
   "typing.update",
   "conversation.patch",
   "channel.publish",
-  "ai.result",
 ] as const;
 
 export type ConversationKind = (typeof conversationKindValues)[number];
 export type Visibility = (typeof visibilityValues)[number];
-
 export type TrustState = (typeof trustStateValues)[number];
 export type ProfileVisibility = (typeof profileVisibilityValues)[number];
 export type DeviceTrustState = (typeof deviceTrustStateValues)[number];
@@ -72,7 +70,6 @@ export type RealtimeEventType = (typeof realtimeEventValues)[number];
 
 export const ConversationKindSchema = z.enum(conversationKindValues);
 export const VisibilitySchema = z.enum(visibilityValues);
-
 export const TrustStateSchema = z.enum(trustStateValues);
 export const ProfileVisibilitySchema = z.enum(profileVisibilityValues);
 export const DeviceTrustStateSchema = z.enum(deviceTrustStateValues);
@@ -101,7 +98,6 @@ export const UserSchema = z.object({
   avatar: z.string(),
   bio: z.string(),
   trustState: TrustStateSchema,
-
   ghostMode: z.boolean(),
   profileVisibility: ProfileVisibilitySchema.default("full"),
   hiddenAvatar: z.boolean().default(false),
@@ -162,7 +158,6 @@ export const DeviceApprovalSchema = z.object({
 export const WorkspacePolicySchema = z.object({
   id: z.string(),
   workspaceId: z.string(),
-
   inviteOnly: z.boolean(),
   retentionDays: z.number(),
 });
@@ -174,7 +169,6 @@ export const WorkspaceSchema = z.object({
   description: z.string(),
   ambientScene: z.string(),
   memberCount: z.number(),
-
   policyId: z.string(),
 });
 
@@ -730,9 +724,8 @@ export function createDemoState(): SynqBootstrapState {
       handle: "numa.ghost",
       role: "Founder",
       avatar: "N",
-      bio: "Building sovereign communication for creators and private teams.",
+      bio: "Building sovereign communication for highly secure teams.",
       trustState: "verified",
-
       ghostMode: true,
       profileVisibility: "handle_only",
       hiddenAvatar: false,
@@ -744,11 +737,10 @@ export function createDemoState(): SynqBootstrapState {
       id: "user_arya",
       name: "Arya Sol",
       handle: "arya.sol",
-      role: "Design Director",
+      role: "Design Systems Lead",
       avatar: "A",
-      bio: "Visual systems, motion grammar, impossible interfaces.",
+      bio: "Visual systems, motion grammar, and calm operational surfaces.",
       trustState: "verified",
-
       ghostMode: false,
       profileVisibility: "full",
       hiddenAvatar: false,
@@ -759,11 +751,10 @@ export function createDemoState(): SynqBootstrapState {
       id: "user_kai",
       name: "Kai Vale",
       handle: "kai.vale",
-      role: "Community Architect",
+      role: "Operations Director",
       avatar: "K",
-      bio: "Creator infrastructure, rituals, rooms, moderation.",
+      bio: "Incident rooms, rollout rituals, and high-trust team coordination.",
       trustState: "watch",
-
       ghostMode: false,
       profileVisibility: "full",
       hiddenAvatar: false,
@@ -859,14 +850,12 @@ export function createDemoState(): SynqBootstrapState {
     {
       id: "policy_synq",
       workspaceId: "ws_synq",
-
       inviteOnly: true,
       retentionDays: 90,
     },
     {
       id: "policy_ghost",
       workspaceId: "ws_ghost",
-
       inviteOnly: false,
       retentionDays: 365,
     },
@@ -875,22 +864,20 @@ export function createDemoState(): SynqBootstrapState {
   const workspaces: Workspace[] = [
     {
       id: "ws_synq",
-      name: "Synq Foundry",
+      name: "Synq Ops",
       slug: "synq-foundry",
-      description: "Private operating room for launch, protocol, and product rituals.",
+      description: "Private operating room for launch, protocol, and security rituals.",
       ambientScene: "Aurora Vault",
       memberCount: 18,
-
       policyId: "policy_synq",
     },
     {
       id: "ws_ghost",
-      name: "Ghost Broadcast",
+      name: "Leadership Updates",
       slug: "ghost-broadcast",
-      description: "Creator-facing broadcast surface with premium discovery mechanics.",
+      description: "Announcement surface for leadership updates, drills, and policy notices.",
       ambientScene: "Coral Drift",
       memberCount: 143,
-
       policyId: "policy_ghost",
     },
   ];
@@ -914,7 +901,7 @@ export function createDemoState(): SynqBootstrapState {
     {
       id: "conv_dm_arya",
       title: "Arya Sol",
-      subtitle: "Design Director",
+      subtitle: "Design Systems Lead",
       kind: "dm",
       visibility: "e2ee",
       participantIds: [currentUserId, "user_arya"],
@@ -947,7 +934,7 @@ export function createDemoState(): SynqBootstrapState {
     {
       id: "conv_workspace_launch",
       title: "Launch Control",
-      subtitle: "Synq Foundry",
+      subtitle: "Synq Ops",
       kind: "workspace_room",
       visibility: "managed_private",
       participantIds: [currentUserId, "user_arya", "user_kai"],
@@ -963,8 +950,8 @@ export function createDemoState(): SynqBootstrapState {
     },
     {
       id: "conv_creator",
-      title: "Ghost Dispatch",
-      subtitle: "Broadcast room",
+      title: "Leadership Dispatch",
+      subtitle: "Announcement room",
       kind: "creator_channel",
       visibility: "managed_broadcast",
       participantIds: [currentUserId, "user_kai"],
@@ -993,8 +980,8 @@ export function createDemoState(): SynqBootstrapState {
     {
       id: "channel_stage",
       workspaceId: "ws_ghost",
-      name: "stage-lights",
-      purpose: "Creator premieres and audience drops",
+      name: "team-updates",
+      purpose: "Leadership updates, drills, and operational notices",
       kind: "creator_channel",
       visibility: "managed_broadcast",
       unreadCount: 12,

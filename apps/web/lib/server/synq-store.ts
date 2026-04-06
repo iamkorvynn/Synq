@@ -12,7 +12,6 @@ import {
   AccountDeleteRequestSchema,
   BlockUserRequestSchema,
   ConversationCreateRequestSchema,
-  AIActionRequestSchema,
   AttachmentFinalizeRequestSchema,
   AttachmentSignRequestSchema,
   AttachmentUploadRequestSchema,
@@ -29,7 +28,6 @@ import {
   ProfileUpdateRequestSchema,
   ReportCreateRequestSchema,
   SendMessageRequestSchema,
-  type AIActionRequest,
   type AccountDeleteRequest,
   type AttachmentFinalizeRequest,
   type AttachmentObject,
@@ -173,8 +171,8 @@ function createSharedSeedState() {
     {
       id: "channel_ops",
       workspaceId: DEFAULT_WORKSPACE_ID,
-      name: "lobby-feed",
-      purpose: "Shared room for everyone who joins Synq.",
+      name: "ops-room",
+      purpose: "Daily coordination, secure check-ins, and incident follow-up.",
       kind: "workspace_room",
       visibility: "managed_private",
       unreadCount: 0,
@@ -182,8 +180,8 @@ function createSharedSeedState() {
     {
       id: "channel_stage",
       workspaceId: DEFAULT_BROADCAST_ID,
-      name: "product-news",
-      purpose: "Announcements and launch notes from the project owner.",
+      name: "team-updates",
+      purpose: "Leadership updates, drills, and policy notices.",
       kind: "creator_channel",
       visibility: "managed_broadcast",
       unreadCount: 0,
@@ -214,14 +212,12 @@ function createSharedSeedState() {
       {
         id: "policy_synq",
         workspaceId: DEFAULT_WORKSPACE_ID,
-        aiPolicy: "local_only",
         inviteOnly: false,
         retentionDays: 90,
       },
       {
         id: "policy_ghost",
         workspaceId: DEFAULT_BROADCAST_ID,
-        aiPolicy: "managed_opt_in",
         inviteOnly: false,
         retentionDays: 365,
       },
@@ -229,22 +225,20 @@ function createSharedSeedState() {
     workspaces: [
       {
         id: DEFAULT_WORKSPACE_ID,
-        name: "Synq Lobby",
-        slug: "synq-lobby",
-        description: "Shared space for everyone using the live Synq demo.",
+        name: "Synq Ops",
+        slug: "synq-ops",
+        description: "High-trust workspace for protected team coordination.",
         ambientScene: "Aurora Vault",
         memberCount: 0,
-        aiPolicy: "local",
         policyId: "policy_synq",
       },
       {
         id: DEFAULT_BROADCAST_ID,
-        name: "Synq Broadcast",
-        slug: "synq-broadcast",
-        description: "Product updates, drops, and public announcements.",
+        name: "Leadership Updates",
+        slug: "leadership-updates",
+        description: "Announcements, drills, and policy notices for trusted teams.",
         ambientScene: "Coral Drift",
         memberCount: 0,
-        aiPolicy: "ephemeral_cloud",
         policyId: "policy_ghost",
       },
     ],
@@ -252,7 +246,7 @@ function createSharedSeedState() {
     conversations: [
       {
         id: DEFAULT_GROUP_ID,
-        title: "Common Room",
+        title: "Security Council",
         subtitle: "Private group",
         kind: "private_group",
         visibility: "managed_private",
@@ -261,14 +255,13 @@ function createSharedSeedState() {
         lastActivityAt: issuedAt,
         lastMessagePreview: "No signals yet. Say hi to start the room.",
         messageProtection: "managed_plaintext",
-        aiPolicyOverride: "inherit",
         ownerUserId: undefined,
         joinCode: makeJoinCode(),
       },
       {
         id: DEFAULT_ROOM_ID,
-        title: "Lobby Feed",
-        subtitle: "Synq Lobby",
+        title: "Ops Room",
+        subtitle: "Synq Ops",
         kind: "workspace_room",
         visibility: "managed_private",
         participantIds: [],
@@ -276,15 +269,14 @@ function createSharedSeedState() {
         lastActivityAt: issuedAt,
         lastMessagePreview: "No signals yet. Start the conversation.",
         messageProtection: "managed_plaintext",
-        aiPolicyOverride: "inherit",
         ownerUserId: undefined,
         joinCode: makeJoinCode(),
         workspaceId: DEFAULT_WORKSPACE_ID,
       },
       {
         id: DEFAULT_CHANNEL_ID,
-        title: "Product News",
-        subtitle: "Broadcast room",
+        title: "Team Updates",
+        subtitle: "Announcement room",
         kind: "creator_channel",
         visibility: "managed_broadcast",
         participantIds: [],
@@ -292,7 +284,6 @@ function createSharedSeedState() {
         lastActivityAt: issuedAt,
         lastMessagePreview: "Announcements will show up here.",
         messageProtection: "managed_plaintext",
-        aiPolicyOverride: "ephemeral_cloud",
         ownerUserId: undefined,
         joinCode: makeJoinCode(),
         workspaceId: DEFAULT_BROADCAST_ID,
@@ -539,7 +530,6 @@ function stripSeededArtifacts(state: SynqBootstrapState) {
     if (policy.workspaceId === DEFAULT_WORKSPACE_ID) {
       return {
         ...policy,
-        aiPolicy: "local_only",
         inviteOnly: false,
         retentionDays: 90,
       };
@@ -548,7 +538,6 @@ function stripSeededArtifacts(state: SynqBootstrapState) {
     if (policy.workspaceId === DEFAULT_BROADCAST_ID) {
       return {
         ...policy,
-        aiPolicy: "managed_opt_in",
         inviteOnly: false,
         retentionDays: 365,
       };
@@ -560,22 +549,20 @@ function stripSeededArtifacts(state: SynqBootstrapState) {
     if (workspace.id === DEFAULT_WORKSPACE_ID) {
       return {
         ...workspace,
-        name: "Synq Lobby",
-        slug: "synq-lobby",
-        description: "Shared space for everyone using the live Synq demo.",
+        name: "Synq Ops",
+        slug: "synq-ops",
+        description: "High-trust workspace for protected team coordination.",
         ambientScene: "Aurora Vault",
-        aiPolicy: "local",
       };
     }
 
     if (workspace.id === DEFAULT_BROADCAST_ID) {
       return {
         ...workspace,
-        name: "Synq Broadcast",
-        slug: "synq-broadcast",
-        description: "Product updates, drops, and public announcements.",
+        name: "Leadership Updates",
+        slug: "leadership-updates",
+        description: "Announcements, drills, and policy notices for trusted teams.",
         ambientScene: "Coral Drift",
-        aiPolicy: "ephemeral_cloud",
       };
     }
 
@@ -586,8 +573,8 @@ function stripSeededArtifacts(state: SynqBootstrapState) {
     if (channel.id === "channel_ops") {
       return {
         ...channel,
-        name: "lobby-feed",
-        purpose: "Shared room for everyone who joins Synq.",
+        name: "ops-room",
+        purpose: "Daily coordination, secure check-ins, and incident follow-up.",
         kind: "workspace_room",
         visibility: "managed_private",
       };
@@ -596,8 +583,8 @@ function stripSeededArtifacts(state: SynqBootstrapState) {
     if (channel.id === "channel_stage") {
       return {
         ...channel,
-        name: "product-news",
-        purpose: "Announcements and launch notes from the project owner.",
+        name: "team-updates",
+        purpose: "Leadership updates, drills, and policy notices.",
         kind: "creator_channel",
         visibility: "managed_broadcast",
       };
@@ -640,12 +627,11 @@ function stripSeededArtifacts(state: SynqBootstrapState) {
             if (conversation.id === DEFAULT_GROUP_ID) {
               return {
                 ...sanitizedConversation,
-                title: "Common Room",
+                title: "Security Council",
                 subtitle: "Private group",
                 kind: "private_group" as const,
                 visibility: "managed_private" as const,
                 messageProtection: "managed_plaintext" as const,
-                aiPolicyOverride: "inherit" as const,
                 joinCode: sanitizedConversation.joinCode ?? makeJoinCode(),
                 workspaceId: undefined,
               };
@@ -654,12 +640,11 @@ function stripSeededArtifacts(state: SynqBootstrapState) {
             if (conversation.id === DEFAULT_ROOM_ID) {
               return {
                 ...sanitizedConversation,
-                title: "Lobby Feed",
-                subtitle: "Synq Lobby",
+                title: "Ops Room",
+                subtitle: "Synq Ops",
                 kind: "workspace_room" as const,
                 visibility: "managed_private" as const,
                 messageProtection: "managed_plaintext" as const,
-                aiPolicyOverride: "inherit" as const,
                 joinCode: sanitizedConversation.joinCode ?? makeJoinCode(),
                 workspaceId: DEFAULT_WORKSPACE_ID,
               };
@@ -668,12 +653,11 @@ function stripSeededArtifacts(state: SynqBootstrapState) {
             if (conversation.id === DEFAULT_CHANNEL_ID) {
               return {
                 ...sanitizedConversation,
-                title: "Product News",
-                subtitle: "Broadcast room",
+                title: "Team Updates",
+                subtitle: "Announcement room",
                 kind: "creator_channel" as const,
                 visibility: "managed_broadcast" as const,
                 messageProtection: "managed_plaintext" as const,
-                aiPolicyOverride: "ephemeral_cloud" as const,
                 joinCode: sanitizedConversation.joinCode ?? makeJoinCode(),
                 workspaceId: DEFAULT_BROADCAST_ID,
               };
@@ -1041,7 +1025,6 @@ function ensureViewer(state: SynqBootstrapState, viewer: ViewerIdentity) {
       avatar: (viewer.name.trim()[0] ?? viewer.email[0] ?? "S").toUpperCase(),
       bio: "Joined Synq through Google sign-in.",
       trustState: "verified",
-      aiPolicy: "local",
       ghostMode: true,
       profileVisibility: "handle_only",
       hiddenAvatar: false,
@@ -1411,9 +1394,8 @@ export async function createConversationRoom(
       unreadCount: 0,
       disappearingSeconds: parsed.disappearingSeconds,
       lastActivityAt: createdAt,
-      lastMessagePreview: "Room created. Invite friends with the join code.",
+      lastMessagePreview: "Room created. Invite your team with the join code.",
       messageProtection: "managed_plaintext",
-      aiPolicyOverride: "inherit",
       ownerUserId: ids.userId,
       joinCode: parsed.kind === "dm" ? undefined : makeJoinCode(),
       directState: parsed.kind === "dm" ? "started" : undefined,
@@ -1490,7 +1472,6 @@ export async function startDirectConversation(
         lastActivityAt: nowIso(),
         lastMessagePreview: `${target.name} is reachable now.`,
         messageProtection: "managed_plaintext",
-        aiPolicyOverride: "inherit",
         ownerUserId: ids.userId,
         directState: "started",
       });
@@ -2049,48 +2030,6 @@ export async function deleteViewerAccount(
     syncSharedMembership(state);
     return { ok: true };
   });
-}
-
-function aiResultFor(action: AIActionRequest["action"], input: string) {
-  const compact = input.trim().replace(/\s+/g, " ");
-  if (!compact) {
-    return "Nothing to summarize yet.";
-  }
-
-  if (action === "translate") {
-    return `Free-mode translation pulse: ${compact.slice(0, 180)}`;
-  }
-
-  if (action === "rewrite") {
-    return `Invite-only rewrite: ${compact.slice(0, 180)}`;
-  }
-
-  if (action === "memory") {
-    return `Shared memory card: ${compact.slice(0, 180)}`;
-  }
-
-  return `Free-mode summary: ${compact.slice(0, 180)}`;
-}
-
-export async function runAiAction(viewer: ViewerIdentity, payload: AIActionRequest) {
-  const parsed = AIActionRequestSchema.parse(payload);
-  const state = await getBootstrapState(viewer);
-  const conversation = state.conversations.find(
-    (item) => item.id === parsed.conversationId,
-  );
-
-  if (!conversation) {
-    throw new Error("Conversation not found.");
-  }
-
-  if (conversation.visibility === "e2ee" && parsed.policy !== "local") {
-    throw new Error("Cloud AI is disabled for sealed rooms.");
-  }
-
-  return {
-    mode: conversation.visibility === "e2ee" ? "local" : parsed.policy,
-    result: aiResultFor(parsed.action, parsed.input),
-  };
 }
 
 export async function getReadiness() {

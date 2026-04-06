@@ -2,7 +2,7 @@
 
 ## Overview
 
-Synq is a modern, secure messenger prototype designed for highly secure teams. It acts as a messaging platform prioritizing privacy, device trust, end-to-end encryption (E2EE), and a highly premium "spatial" cinematic user interface.
+Synq is a modern, premium secure messenger prototype designed for highly secure teams. It prioritizes privacy, device trust, end-to-end encryption (E2EE), and a cinematic spatial interface that helps teams stay calm and focused under pressure.
 
 ## Core Features
 
@@ -11,7 +11,7 @@ Synq is a modern, secure messenger prototype designed for highly secure teams. I
 3. **Cinematic Spatial UI:** Built with React Three Fiber, Synq features 3D interactive elements (like the Trust Orb), glassmorphism textures, dynamic gradients, and fluid motion, establishing a state-of-the-art "premium" look and feel.
 4. **Ghost Mode & Privacy Controls:** Users can adopt "Ghost" handles, decouple phone numbers, and control profile visibility (full vs. handle-only) to remain low-profile.
 5. **Encrypted Attachments:** Media and file sharing follow a strict "encrypt-before-upload" lifecycle, preventing server hosts from accessing shared media contents.
-6. **Offline Support & PWA ready:** The Next.js frontend is built as a Progressive Web App (PWA) with offline offline queueing and message replay capabilities.
+6. **Offline Support & PWA Ready:** The Next.js frontend is built as a Progressive Web App (PWA) with offline queueing and message replay capabilities.
 
 ## Monorepo Architecture
 
@@ -46,7 +46,7 @@ Synq is built as a TypeScript monorepo, structured into independent apps and pac
 
 ## Database Schema & State
 
-While the actual messages in E2EE rooms are encrypted, the platform must manage relationship state. The Postgres database (or local memory driver) tracks:
+While the actual messages in E2EE rooms are encrypted, the platform must still manage runtime relationship state. The Postgres database (or local memory driver) tracks:
 - **Workspaces & Circles:** Organizational containers grouping users.
 - **Conversations & Channels:** Chat threads, keeping track of members and unread counts.
 - **Device Approvals:** Cryptographic public keys linked to user devices with their current authorization status.
@@ -55,7 +55,7 @@ While the actual messages in E2EE rooms are encrypted, the platform must manage 
 
 ## Threat Model & Security Considerations
 
-Synq was designed against a stringent threat model:
+Synq was designed against a stringent threat model for invite-only, high-trust team communication:
 - **Mitigated Threats:** 
   - Account takeover via server breach (since actual clients hold the private device keys).
   - Server-side metadata leakage (through encrypted references and redacted previews).
@@ -71,8 +71,8 @@ Synq was designed against a stringent threat model:
 
 The monorepo design allows Synq to be deployed in two drastically different configurations based on requirements:
 
-### Student / Hobbyist Tier (Vercel + Neon)
-Ideal for small, friends-only deployments.
+### Lean Tier (Vercel + Neon)
+Ideal for smaller invite-only team deployments.
 - **Stack:** Only `apps/web` deployed to Vercel free tier.
 - **Database:** Free Serverless Postgres (Neon).
 - **Auth:** NextAuth providing Google login, restricted safely by an email allowlist (`SYNQ_INVITE_EMAILS`).

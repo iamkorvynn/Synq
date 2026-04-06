@@ -1,4 +1,4 @@
-# Synq on Vercel for Students
+# Synq on Vercel for Lean Team Deploys
 
 This is the cheapest path that matches the codebase today:
 
@@ -66,7 +66,7 @@ Deploy from Vercel normally. After deploy:
 1. Open `/chat`
 2. Sign in with one of the invited Google accounts
 3. Finish onboarding
-4. Ask your friends on the invite list to do the same
+4. Ask the rest of your invited team to do the same
 
 ## 7. If something breaks
 
@@ -79,6 +79,6 @@ Check these first:
 
 ## Notes
 
-- This setup is for a friends-only demo, not a high-scale public launch
+- This setup is for a small invite-only team, not a high-scale public launch
 - The old Fastify API path is no longer required for the Vercel deployment path
 - The app now prefers Google auth over the earlier custom passkey demo flow

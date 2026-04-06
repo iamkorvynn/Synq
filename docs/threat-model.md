@@ -5,7 +5,7 @@
 - user identities, handles, optional recovery data
 - passkey/session state and device approval state
 - ciphertext payloads and encrypted attachment references
-- workspace policy settings and audit history
+- workspace security settings and audit history
 
 ## Primary threats
 
@@ -14,13 +14,12 @@
 - metadata leakage from logs, previews, search indexes, or analytics
 - replay and out-of-order message delivery attacks in sealed rooms
 - stolen device continuing to read sealed-room history after revocation
-- creator/community abuse including spam, invite farming, and malicious attachments
+- insider misuse, invite abuse, spam, and malicious attachments inside team spaces
 
 ## Current controls
 
 - short-lived access sessions with refresh rotation
 - explicit device trust states: pending, approved, revoked, compromised
-- server-side AI policy enforcement blocking cloud AI on sealed rooms
 - redacted previews for E2EE conversations on the server response path
 - attachment lifecycle states with encrypted upload-before-finalize-before-send requirement
 - audit trail for passkey, device, attachment, and onboarding events
