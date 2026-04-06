@@ -194,6 +194,15 @@ export async function startDirectConversation(payload: DirectConversationRequest
   });
 }
 
+export async function deleteConversation(conversationId: string) {
+  return request<{ ok: true; conversationId: string }>(
+    `/conversations/${conversationId}`,
+    {
+      method: "DELETE",
+    },
+  );
+}
+
 export async function markConversationRead(conversationId: string) {
   return request(`/conversations/${conversationId}/read`, {
     method: "POST",

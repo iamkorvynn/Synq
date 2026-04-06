@@ -28,6 +28,7 @@ import {
   completeOnboarding,
   connectRealtime,
   createConversation,
+  deleteConversation,
   deleteAccount,
   deleteMessage,
   editMessage,
@@ -553,6 +554,17 @@ export function ChatExperience() {
         .filter(Boolean) as User[],
     [currentUser?.id, selectedConversation?.typingUserIds, state?.users],
   );
+  const selectedConversationMembers = useMemo(() => {
+    if (!selectedConversation) return [];
+    return selectedConversation.participantIds
+      .map((userId) => state?.users.find((user) => user.id === userId))
+      .filter((user): user is User => Boolean(user));
+  }, [selectedConversation, state?.users]);
+  const canDeleteSelectedRoom =
+    Boolean(currentUser) &&
+    Boolean(selectedConversation) &&
+    selectedConversation?.kind !== "dm" &&
+    selectedConversation?.ownerUserId === currentUser?.id;
   const totalUnreadCount = useMemo(
     () =>
       state?.conversations.reduce((count, conversation) => count + conversation.unreadCount, 0) ??
@@ -1379,6 +1391,34 @@ export function ChatExperience() {
   function handleOpenSearchFromUtilities() {
     setIsUtilitiesOpen(false);
     openSearchPanel();
+  }
+
+  async function handleDeleteSelectedRoom() {
+    if (!selectedConversation || !canDeleteSelectedRoom) {
+      return;
+    }
+
+    if (
+      !window.confirm(
+        `Delete ${selectedConversation.title} for every member in this room? This removes the room and its messages.`,
+      )
+    ) {
+      return;
+    }
+
+    try {
+      const roomTitle = selectedConversation.title;
+      setIsUtilitiesOpen(false);
+      await deleteConversation(selectedConversation.id);
+      await loadBootstrap(true);
+      pushToast("success", `${roomTitle} deleted.`);
+    } catch (error) {
+      const message =
+        error instanceof Error && error.message
+          ? error.message
+          : "Synq could not delete that room.";
+      pushToast("error", message);
+    }
   }
 
   async function handleReaction(messageId: string, emoji: string) {
@@ -2287,7 +2327,7 @@ export function ChatExperience() {
                     type="button"
                     aria-label="Open conversation tools"
                     aria-expanded={isUtilitiesOpen}
-                    aria-haspopup="menu"
+                    aria-haspopup="dialog"
                     onClick={() => setIsUtilitiesOpen((current) => !current)}
                     className="rounded-full border border-white/10 bg-white/[0.05] px-4 py-2 text-sm text-white/78 transition hover:border-white/18 hover:bg-white/[0.08]"
                   >
@@ -2300,17 +2340,80 @@ export function ChatExperience() {
                         animate={{ opacity: 1, y: 0 }}
                         exit={reduceMotion ? undefined : { opacity: 0, y: -6 }}
                         transition={reduceMotion ? undefined : motionTokens.spring}
-                        role="menu"
-                        className="absolute right-0 top-[calc(100%+0.6rem)] z-20 min-w-[220px] rounded-[22px] border border-white/10 bg-[#09111C]/95 p-2 shadow-[0_20px_60px_rgba(0,0,0,0.45)] backdrop-blur-xl"
+                        role="dialog"
+                        aria-label="Conversation tools"
+                        className="absolute right-0 top-[calc(100%+0.6rem)] z-20 w-[min(24rem,calc(100vw-1.5rem))] rounded-[22px] border border-white/10 bg-[#09111C]/95 p-2 shadow-[0_20px_60px_rgba(0,0,0,0.45)] backdrop-blur-xl"
                       >
+                        <div className="rounded-[18px] border border-white/8 bg-white/[0.03] p-3">
+                          <div className="flex items-center justify-between gap-3">
+                            <div>
+                              <p className="text-sm font-medium text-white">Members</p>
+                              <p className="mt-1 text-xs text-white/48">
+                                {selectedConversationMembers.length} in this conversation
+                              </p>
+                            </div>
+                            {selectedConversation?.ownerUserId ? (
+                              <StatusPill tone="cyan">Owner managed</StatusPill>
+                            ) : null}
+                          </div>
+                          <div className="mt-3 flex flex-wrap gap-2">
+                            {selectedConversationMembers.length ? (
+                              selectedConversationMembers.map((member) => (
+                                <div
+                                  key={member.id}
+                                  className="rounded-[18px] border border-white/8 bg-white/[0.04] px-3 py-2"
+                                >
+                                  <div className="flex items-center gap-2">
+                                    <div className="flex h-8 w-8 items-center justify-center rounded-2xl bg-white/10 text-xs font-semibold text-white">
+                                      {displayAvatar(member)}
+                                    </div>
+                                    <div className="min-w-0">
+                                      <p className="truncate text-sm text-white">
+                                        {displayIdentity(member)}
+                                      </p>
+                                      <div className="mt-1 flex flex-wrap gap-1">
+                                        {selectedConversation?.ownerUserId === member.id ? (
+                                          <span className="rounded-full border border-[#5DE4FF]/25 px-2 py-0.5 text-[10px] tracking-[0.12em] text-[#AEEFFF]">
+                                            OWNER
+                                          </span>
+                                        ) : null}
+                                        {currentUser?.id === member.id ? (
+                                          <span className="rounded-full border border-white/10 px-2 py-0.5 text-[10px] tracking-[0.12em] text-white/58">
+                                            YOU
+                                          </span>
+                                        ) : null}
+                                      </div>
+                                    </div>
+                                  </div>
+                                </div>
+                              ))
+                            ) : (
+                              <p className="text-sm text-white/55">No members are visible yet.</p>
+                            )}
+                          </div>
+                        </div>
                         <button
                           type="button"
-                          role="menuitem"
                           onClick={handleOpenSearchFromUtilities}
-                          className="w-full rounded-[16px] px-3 py-3 text-left text-sm text-white/80 transition hover:bg-white/[0.06]"
+                          className="mt-2 w-full rounded-[16px] px-3 py-3 text-left text-sm text-white/80 transition hover:bg-white/[0.06]"
                         >
                           Search messages
                         </button>
+                        {selectedConversation?.kind !== "dm" ? (
+                          canDeleteSelectedRoom ? (
+                            <button
+                              type="button"
+                              onClick={() => void handleDeleteSelectedRoom()}
+                              className="mt-2 w-full rounded-[16px] border border-[#FF7A6E]/24 bg-[#FF7A6E]/8 px-3 py-3 text-left text-sm text-[#FFD1CB] transition hover:border-[#FF7A6E]/34 hover:bg-[#FF7A6E]/12"
+                            >
+                              Delete room
+                            </button>
+                          ) : (
+                            <p className="mt-2 px-3 py-2 text-xs text-white/46">
+                              Only the room owner can delete this room.
+                            </p>
+                          )
+                        ) : null}
                       </motion.div>
                     ) : null}
                   </AnimatePresence>

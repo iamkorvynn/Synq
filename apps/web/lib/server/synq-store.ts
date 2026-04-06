@@ -856,6 +856,20 @@ async function loadAttachmentBlob(attachmentId: string) {
   };
 }
 
+async function deleteAttachmentBlob(attachmentId: string) {
+  const db = getPool();
+  if (!db) {
+    getMemoryBlobs().delete(attachmentId);
+    return;
+  }
+
+  await ensureSchema();
+  await db.query(
+    "DELETE FROM synq_attachment_blobs WHERE attachment_id = $1",
+    [attachmentId],
+  );
+}
+
 function syncSharedMembership(state: SynqBootstrapState) {
   const userIds = state.users.map((user) => user.id);
 
@@ -1483,6 +1497,74 @@ export async function startDirectConversation(
     syncSharedMembership(state);
     markConversationRead(state, conversation.id, ids.userId);
     return conversation;
+  });
+}
+
+export async function deleteConversationRoom(
+  viewer: ViewerIdentity,
+  conversationId: string,
+) {
+  return withStateMutation(viewer, async (state, ids) => {
+    const conversation = conversationForUser(state, conversationId, ids.userId);
+    if (!conversation) {
+      throw new Error("Conversation not found.");
+    }
+
+    if (conversation.kind === "dm") {
+      throw new Error("Direct signals cannot be deleted from room tools.");
+    }
+
+    if (conversation.ownerUserId !== ids.userId) {
+      throw new Error("Only the room owner can delete this room.");
+    }
+
+    const attachmentIds = new Set(
+      state.messages
+        .filter((message) => message.conversationId === conversationId)
+        .flatMap((message) => message.attachments.map((attachment) => attachment.id)),
+    );
+
+    state.conversations = state.conversations.filter(
+      (item) => item.id !== conversationId,
+    );
+    state.messages = state.messages.filter(
+      (message) => message.conversationId !== conversationId,
+    );
+    state.pinnedMessages = state.pinnedMessages.filter(
+      (pin) => pin.conversationId !== conversationId,
+    );
+    state.typingIndicators = state.typingIndicators.filter(
+      (indicator) => indicator.conversationId !== conversationId,
+    );
+    state.conversationMemberships = state.conversationMemberships.filter(
+      (membership) => membership.conversationId !== conversationId,
+    );
+    state.reports = state.reports.filter(
+      (report) => report.conversationId !== conversationId,
+    );
+    state.moderationLogs = state.moderationLogs.filter(
+      (log) => log.conversationId !== conversationId,
+    );
+    state.auditEvents = state.auditEvents.filter(
+      (event) => event.conversationId !== conversationId,
+    );
+    state.disappearingJobs = state.disappearingJobs.filter(
+      (job) => job.conversationId !== conversationId,
+    );
+    state.attachmentObjects = state.attachmentObjects.filter(
+      (attachment) => !attachmentIds.has(attachment.id),
+    );
+
+    for (const attachmentId of attachmentIds) {
+      await deleteAttachmentBlob(attachmentId);
+    }
+
+    syncSharedMembership(state);
+
+    return {
+      ok: true,
+      conversationId,
+    };
   });
 }
 
