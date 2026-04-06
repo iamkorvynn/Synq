@@ -62,6 +62,7 @@ import {
 } from "@/lib/offline-queue";
 import { sealPreviewForRecipient } from "@/lib/session-crypto";
 
+import { DelayedTooltip } from "./delayed-tooltip";
 import { TrustOrb } from "./trust-orb";
 
 type AuthStage = "loading" | "signed_out" | "ready";
@@ -1799,14 +1800,16 @@ export function ChatExperience() {
 
               <div className="synq-scroll min-h-0 flex-1 overflow-y-auto px-5 py-5">
                 <div className="relative rounded-[28px] border border-white/8 bg-white/[0.03] p-4">
-                  <button
-                    type="button"
-                    onClick={() => handleOpenProfileDock(true)}
-                    className="absolute right-4 top-4 rounded-full border border-white/10 bg-white/[0.04] p-2 text-white/72 transition hover:border-white/18 hover:text-white"
-                    aria-label="Open profile panel"
-                  >
-                    <ProfilePanelIcon />
-                  </button>
+                  <DelayedTooltip content="Open profile, people search, and privacy settings">
+                    <button
+                      type="button"
+                      onClick={() => handleOpenProfileDock(true)}
+                      className="absolute right-4 top-4 rounded-full border border-white/10 bg-white/[0.04] p-2 text-white/72 transition hover:border-white/18 hover:text-white"
+                      aria-label="Open profile panel"
+                    >
+                      <ProfilePanelIcon />
+                    </button>
+                  </DelayedTooltip>
                   <div className="flex items-start gap-4 pr-12">
                     <div className="synq-sigil flex h-16 w-16 shrink-0 items-center justify-center rounded-[22px] border border-white/10 text-lg font-semibold text-white">
                       {displayAvatar(currentUser)}
@@ -1945,14 +1948,16 @@ export function ChatExperience() {
           className="relative hidden xl:block xl:h-full xl:min-h-0"
         >
           <GlassCard className="flex h-full min-h-0 flex-col items-center p-3">
-            <button
-              type="button"
-              onClick={() => handleOpenProfileDock()}
-              className="self-end rounded-full border border-white/10 bg-white/[0.04] p-2 text-white/72 transition hover:border-white/18 hover:text-white"
-              aria-label="Open profile panel"
-            >
-              <ProfilePanelIcon />
-            </button>
+            <DelayedTooltip content="Open profile, people search, and privacy settings">
+              <button
+                type="button"
+                onClick={() => handleOpenProfileDock()}
+                className="self-end rounded-full border border-white/10 bg-white/[0.04] p-2 text-white/72 transition hover:border-white/18 hover:text-white"
+                aria-label="Open profile panel"
+              >
+                <ProfilePanelIcon />
+              </button>
+            </DelayedTooltip>
 
             <div className="mt-5 flex flex-1 flex-col items-center text-center">
               <div className="synq-sigil flex h-16 w-16 items-center justify-center rounded-[22px] border border-white/10 text-lg font-semibold text-white">
@@ -2071,27 +2076,31 @@ export function ChatExperience() {
           </div>
           <div className="mt-3 grid grid-cols-3 gap-2">
             {spaceItems.map((space) => (
-              <button
-                key={`inbox-space-${space.id}`}
-                type="button"
-                title={space.name}
-                aria-label={space.name}
-                onClick={() => handleSelectWorkspace(space.id)}
-                className={cx(
-                  "relative flex h-12 items-center justify-center rounded-[18px] border transition",
-                  space.id === selectedWorkspaceId
-                    ? "border-[#5DE4FF]/32 bg-[linear-gradient(135deg,rgba(93,228,255,0.14),rgba(255,122,110,0.08))] text-white shadow-[0_12px_22px_rgba(7,16,26,0.18)]"
-                    : "border-white/8 bg-white/[0.03] text-white/74 hover:border-white/14 hover:bg-white/[0.05] hover:text-white",
-                )}
+              <DelayedTooltip
+                key={`inbox-space-tooltip-${space.id}`}
+                content={`Switch to ${space.name}`}
               >
-                <span className="text-white">{renderSpaceIcon(space)}</span>
-                <span className="sr-only">{space.name}</span>
-                {space.unreadCount ? (
-                  <span className="absolute right-1.5 top-1.5 rounded-full bg-[#FF7A6E] px-1.5 py-[2px] text-[10px] font-semibold leading-none text-[#071019]">
-                    {space.unreadCount}
-                  </span>
-                ) : null}
-              </button>
+                <button
+                  key={`inbox-space-${space.id}`}
+                  type="button"
+                  aria-label={space.name}
+                  onClick={() => handleSelectWorkspace(space.id)}
+                  className={cx(
+                    "relative flex h-12 items-center justify-center rounded-[18px] border transition",
+                    space.id === selectedWorkspaceId
+                      ? "border-[#5DE4FF]/32 bg-[linear-gradient(135deg,rgba(93,228,255,0.14),rgba(255,122,110,0.08))] text-white shadow-[0_12px_22px_rgba(7,16,26,0.18)]"
+                      : "border-white/8 bg-white/[0.03] text-white/74 hover:border-white/14 hover:bg-white/[0.05] hover:text-white",
+                  )}
+                >
+                  <span className="text-white">{renderSpaceIcon(space)}</span>
+                  <span className="sr-only">{space.name}</span>
+                  {space.unreadCount ? (
+                    <span className="absolute right-1.5 top-1.5 rounded-full bg-[#FF7A6E] px-1.5 py-[2px] text-[10px] font-semibold leading-none text-[#071019]">
+                      {space.unreadCount}
+                    </span>
+                  ) : null}
+                </button>
+              </DelayedTooltip>
             ))}
           </div>
           <div className="mt-3 rounded-[22px] border border-white/7 bg-black/12 p-2.5">
@@ -2765,58 +2774,65 @@ export function ChatExperience() {
           >
             <div className={cx("flex items-center", isDockCollapsed ? "justify-center" : "justify-between")}>
               {isDockCollapsed ? null : <SectionLabel>Dock</SectionLabel>}
-              <button
-                type="button"
-                aria-label={isDockCollapsed ? "Expand dock" : "Collapse dock"}
-                onClick={() => setIsDockCollapsed((current) => !current)}
-                className="rounded-full border border-white/10 bg-white/[0.04] p-2 text-white/72 transition hover:border-white/18 hover:text-white"
+              <DelayedTooltip
+                content={isDockCollapsed ? "Show room details" : "Hide room details"}
               >
-                <DockToggleIcon collapsed={isDockCollapsed} />
-              </button>
+                <button
+                  type="button"
+                  aria-label={isDockCollapsed ? "Expand dock" : "Collapse dock"}
+                  onClick={() => setIsDockCollapsed((current) => !current)}
+                  className="rounded-full border border-white/10 bg-white/[0.04] p-2 text-white/72 transition hover:border-white/18 hover:text-white"
+                >
+                  <DockToggleIcon collapsed={isDockCollapsed} />
+                </button>
+              </DelayedTooltip>
             </div>
             {isDockCollapsed ? (
               <div className="mt-2 flex flex-1 flex-col items-center gap-3">
-                <button
-                  type="button"
-                  title="Expand dock"
-                  aria-label="Expand dock with live orb"
-                  onClick={() => {
-                    setActiveDockTab("memory");
-                    setIsDockCollapsed(false);
-                  }}
-                  className="rounded-[18px] text-white/78 transition"
-                >
-                  <MiniDockOrb
-                    tone={conversationTone(selectedConversation)}
-                    active
-                  />
-                </button>
-                <button
-                  type="button"
-                  title="Memory"
-                  aria-label="Open Memory dock tab"
-                  data-active={activeDockTab === "memory"}
-                  onClick={() => {
-                    setActiveDockTab("memory");
-                    setIsDockCollapsed(false);
-                  }}
-                  className="synq-tab flex h-12 w-12 items-center justify-center rounded-[18px] text-white/78"
-                >
-                  {renderDockTabIcon("memory")}
-                </button>
-                <button
-                  type="button"
-                  title="Safety"
-                  aria-label="Open Safety dock tab"
-                  data-active={activeDockTab === "safety"}
-                  onClick={() => {
-                    setActiveDockTab("safety");
-                    setIsDockCollapsed(false);
-                  }}
-                  className="synq-tab flex h-12 w-12 items-center justify-center rounded-[18px] text-white/78"
-                >
-                  {renderDockTabIcon("safety")}
-                </button>
+                <DelayedTooltip content="Open room details">
+                  <button
+                    type="button"
+                    aria-label="Expand dock with live orb"
+                    onClick={() => {
+                      setActiveDockTab("memory");
+                      setIsDockCollapsed(false);
+                    }}
+                    className="rounded-[18px] text-white/78 transition"
+                  >
+                    <MiniDockOrb
+                      tone={conversationTone(selectedConversation)}
+                      active
+                    />
+                  </button>
+                </DelayedTooltip>
+                <DelayedTooltip content="Open room context and pinned messages">
+                  <button
+                    type="button"
+                    aria-label="Open Memory dock tab"
+                    data-active={activeDockTab === "memory"}
+                    onClick={() => {
+                      setActiveDockTab("memory");
+                      setIsDockCollapsed(false);
+                    }}
+                    className="synq-tab flex h-12 w-12 items-center justify-center rounded-[18px] text-white/78"
+                  >
+                    {renderDockTabIcon("memory")}
+                  </button>
+                </DelayedTooltip>
+                <DelayedTooltip content="Open devices, reports, and account controls">
+                  <button
+                    type="button"
+                    aria-label="Open Safety dock tab"
+                    data-active={activeDockTab === "safety"}
+                    onClick={() => {
+                      setActiveDockTab("safety");
+                      setIsDockCollapsed(false);
+                    }}
+                    className="synq-tab flex h-12 w-12 items-center justify-center rounded-[18px] text-white/78"
+                  >
+                    {renderDockTabIcon("safety")}
+                  </button>
+                </DelayedTooltip>
               </div>
             ) : (
               <>
