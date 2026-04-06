@@ -326,7 +326,7 @@ export class TrustedStore {
 
         ghostMode: false,
         onboardingComplete: false,
-        profileVisibility: "handle_only",
+        profileVisibility: "handle_only" as const,
         hiddenAvatar: false,
         privateDiscovery: false,
       };

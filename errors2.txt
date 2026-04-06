@@ -1,0 +1,1 @@
+﻿apps/api/src/routes/http.ts(27,30): error TS2344: Type 'TDef' does not satisfy the constraint 'ZodTypeDef'.

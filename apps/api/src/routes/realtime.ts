@@ -59,7 +59,7 @@ export async function registerRealtimeRoutes(
 
       const unsubscribe = store.onRealtime((event) => send(event));
 
-      socket.on("message", (rawMessage) => {
+      socket.on("message", (rawMessage: any) => {
         void (async () => {
           const envelope = RealtimeEnvelopeSchema.parse(
             JSON.parse(rawMessage.toString()),

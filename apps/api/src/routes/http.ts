@@ -23,7 +23,10 @@ import { z } from "zod";
 import { RateLimiter } from "../security/rate-limiter";
 import type { TrustedStore } from "../store/trusted-store";
 
-function parseOrThrow<T>(schema: z.ZodType<T>, input: unknown): T {
+function parseOrThrow<T extends z.ZodTypeAny>(
+  schema: T,
+  input: unknown,
+): z.infer<T> {
   return schema.parse(input);
 }
 
