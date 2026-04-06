@@ -2352,9 +2352,9 @@ export function ChatExperience() {
                         transition={reduceMotion ? undefined : motionTokens.spring}
                         role="dialog"
                         aria-label="Conversation tools"
-                        className="absolute right-0 top-[calc(100%+0.6rem)] z-20 w-[min(24rem,calc(100vw-1.5rem))] rounded-[22px] border border-white/10 bg-[#09111C]/95 p-2 shadow-[0_20px_60px_rgba(0,0,0,0.45)] backdrop-blur-xl"
+                        className="absolute right-0 top-[calc(100%+0.6rem)] z-20 w-[min(24rem,calc(100vw-1.5rem))] rounded-[22px] border border-white/12 bg-[#09111C] p-2 shadow-[0_24px_70px_rgba(0,0,0,0.52)]"
                       >
-                        <div className="rounded-[18px] border border-white/8 bg-white/[0.03] p-3">
+                        <div className="rounded-[18px] border border-white/10 bg-[#0E1724] p-3">
                           <div className="flex items-center justify-between gap-3">
                             <div>
                               <p className="text-sm font-medium text-white">Members</p>
@@ -2371,10 +2371,10 @@ export function ChatExperience() {
                               selectedConversationMembers.map((member) => (
                                 <div
                                   key={member.id}
-                                  className="rounded-[18px] border border-white/8 bg-white/[0.04] px-3 py-2"
+                                  className="rounded-[18px] border border-white/10 bg-[#121C2B] px-3 py-2"
                                 >
                                   <div className="flex items-center gap-2">
-                                    <div className="flex h-8 w-8 items-center justify-center rounded-2xl bg-white/10 text-xs font-semibold text-white">
+                                    <div className="flex h-8 w-8 items-center justify-center rounded-2xl bg-white/[0.08] text-xs font-semibold text-white">
                                       {displayAvatar(member)}
                                     </div>
                                     <div className="min-w-0">
@@ -2405,7 +2405,7 @@ export function ChatExperience() {
                         <button
                           type="button"
                           onClick={handleOpenSearchFromUtilities}
-                          className="mt-2 w-full rounded-[16px] px-3 py-3 text-left text-sm text-white/80 transition hover:bg-white/[0.06]"
+                          className="mt-2 w-full rounded-[16px] border border-white/10 bg-[#0E1724] px-3 py-3 text-left text-sm text-white/82 transition hover:border-white/16 hover:bg-[#122032]"
                         >
                           Search messages
                         </button>
@@ -2414,7 +2414,7 @@ export function ChatExperience() {
                             <button
                               type="button"
                               onClick={() => void handleDeleteSelectedRoom()}
-                              className="mt-2 w-full rounded-[16px] border border-[#FF7A6E]/24 bg-[#FF7A6E]/8 px-3 py-3 text-left text-sm text-[#FFD1CB] transition hover:border-[#FF7A6E]/34 hover:bg-[#FF7A6E]/12"
+                              className="mt-2 w-full rounded-[16px] border border-[#FF7A6E]/30 bg-[#241214] px-3 py-3 text-left text-sm text-[#FFD1CB] transition hover:border-[#FF7A6E]/40 hover:bg-[#2C1518]"
                             >
                               Delete room
                             </button>

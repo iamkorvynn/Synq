@@ -872,6 +872,7 @@ async function deleteAttachmentBlob(attachmentId: string) {
 
 function syncSharedMembership(state: SynqBootstrapState) {
   const userIds = state.users.map((user) => user.id);
+  const fallbackOwnerId = state.users.find((user) => user.role === "Owner")?.id;
 
   state.workspaces = state.workspaces.map((workspace) => ({
     ...workspace,
@@ -892,6 +893,9 @@ function syncSharedMembership(state: SynqBootstrapState) {
     return {
       ...conversation,
       participantIds,
+      ownerUserId:
+        conversation.ownerUserId ??
+        (conversation.kind === "dm" ? undefined : fallbackOwnerId),
     };
   });
 
@@ -1124,6 +1128,7 @@ function personalizeConversations(state: SynqBootstrapState, viewerId: string) {
       if (conversation.kind !== "dm") {
         return {
           ...conversation,
+          ownerUserId: effectiveConversationOwnerId(state, conversation),
           unreadCount: membership?.unreadCount ?? 0,
           typingUserIds,
         };
