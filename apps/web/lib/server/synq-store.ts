@@ -1250,6 +1250,21 @@ function isModerator(state: SynqBootstrapState, userId: string) {
   return role === "Owner" || role === "Moderator";
 }
 
+function effectiveConversationOwnerId(
+  state: SynqBootstrapState,
+  conversation: Conversation,
+) {
+  if (conversation.ownerUserId) {
+    return conversation.ownerUserId;
+  }
+
+  if (conversation.kind === "dm") {
+    return undefined;
+  }
+
+  return state.users.find((user) => user.role === "Owner")?.id;
+}
+
 function touchConversation(
   state: SynqBootstrapState,
   conversationId: string,
@@ -1514,7 +1529,7 @@ export async function deleteConversationRoom(
       throw new Error("Direct signals cannot be deleted from room tools.");
     }
 
-    if (conversation.ownerUserId !== ids.userId) {
+    if (effectiveConversationOwnerId(state, conversation) !== ids.userId) {
       throw new Error("Only the room owner can delete this room.");
     }
 

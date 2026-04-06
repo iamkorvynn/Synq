@@ -560,11 +560,21 @@ export function ChatExperience() {
       .map((userId) => state?.users.find((user) => user.id === userId))
       .filter((user): user is User => Boolean(user));
   }, [selectedConversation, state?.users]);
+  const selectedConversationOwnerId = useMemo(() => {
+    if (!selectedConversation) return undefined;
+    if (selectedConversation.ownerUserId) {
+      return selectedConversation.ownerUserId;
+    }
+    if (selectedConversation.kind === "dm") {
+      return undefined;
+    }
+    return state?.users.find((user) => user.role === "Owner")?.id;
+  }, [selectedConversation, state?.users]);
   const canDeleteSelectedRoom =
     Boolean(currentUser) &&
     Boolean(selectedConversation) &&
     selectedConversation?.kind !== "dm" &&
-    selectedConversation?.ownerUserId === currentUser?.id;
+    selectedConversationOwnerId === currentUser?.id;
   const totalUnreadCount = useMemo(
     () =>
       state?.conversations.reduce((count, conversation) => count + conversation.unreadCount, 0) ??
@@ -2352,7 +2362,7 @@ export function ChatExperience() {
                                 {selectedConversationMembers.length} in this conversation
                               </p>
                             </div>
-                            {selectedConversation?.ownerUserId ? (
+                            {selectedConversationOwnerId ? (
                               <StatusPill tone="cyan">Owner managed</StatusPill>
                             ) : null}
                           </div>
@@ -2372,7 +2382,7 @@ export function ChatExperience() {
                                         {displayIdentity(member)}
                                       </p>
                                       <div className="mt-1 flex flex-wrap gap-1">
-                                        {selectedConversation?.ownerUserId === member.id ? (
+                                        {selectedConversationOwnerId === member.id ? (
                                           <span className="rounded-full border border-[#5DE4FF]/25 px-2 py-0.5 text-[10px] tracking-[0.12em] text-[#AEEFFF]">
                                             OWNER
                                           </span>
