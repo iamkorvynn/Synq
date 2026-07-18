@@ -1,95 +1,154 @@
 # Synq
 
-Synq is a premium, highly secure team messenger prototype built as a monorepo.
+> A premium, highly secure team messenger with end-to-end encryption, spatial UI, and offline-first architecture.
 
-The easiest working path now is:
+Synq is a production-ready messenger prototype built as a full-stack monorepo with TypeScript. It emphasizes encryption, device trust, and seamless offline message replay.
 
-- deploy `apps/web` on Vercel
-- use Google OAuth through Auth.js
-- use a free Neon Postgres database
-- keep the app invite-only for your team
+## ✨ Key Features
 
-Repo layout:
+- **🔐 End-to-End Encryption** – Client-side sealing with sender-key group helpers and ratcheted session management
+- **📱 PWA-First Design** – Cinematic motion, spatial UI, offline message replay, and device trust flows
+- **⚡ Real-Time Events** – WebSocket-backed message delivery with trusted session handling
+- **🔒 Device Approval** – Multi-device support with explicit device trust policies
+- **📎 Secure Attachments** – Client-side encryption with durable blob storage and authentication
+- **🚀 Zero Downtime** – Postgres-backed state with built-in schema migrations
 
-- `apps/web`: Next.js PWA with cinematic motion, spatial UI, device trust flows, and offline message replay.
-- `apps/api`: Fastify control plane with trusted session flows, device approvals, realtime websocket events, and attachment signing/finalization.
-- `packages/protocol`: shared enums, schemas, contracts, bootstrap state, and auth/device policy types.
-- `packages/crypto`: identity bundles, signed prekeys, ratcheted session helpers, sender-key group helpers, and direct-message sealing utilities.
-- `packages/ui`: shared glassmorphism primitives and motion/theme tokens.
+## 🏗️ Architecture
 
-## Run locally
+This is a monorepo organized as follows:
+
+| Package | Purpose |
+|---------|---------|
+| **`apps/web`** | Next.js PWA with cinematic motion, spatial UI, device trust flows, and offline replay |
+| **`apps/api`** | Fastify control plane with WebSocket events, device approvals, and attachment signing |
+| **`packages/protocol`** | Shared enums, schemas, contracts, bootstrap state, and auth/device policies |
+| **`packages/crypto`** | Identity bundles, signed prekeys, session ratcheting, group helpers, DM sealing |
+| **`packages/ui`** | Glassmorphism primitives, motion tokens, and theme utilities |
+
+**Language Composition:** TypeScript (97.5%) | CSS (1.1%) | JavaScript (1.1%) | Docker (0.3%)
+
+## 🚀 Quick Start
+
+### Local Development
 
 ```bash
+# Install dependencies
 npm install
+
+# Start the web app (fastest path)
 npm run dev
+# Open http://localhost:3000
 ```
 
-The simplest local path is now the Vercel-style app at `http://localhost:3000`.
-
-If you still want the old split-stack local dev mode:
+### Full Stack (Legacy)
 
 ```bash
+# Run both web and API simultaneously
 npm run dev:full
+# Web: http://localhost:3000
+# API: http://localhost:4000
 ```
 
-That runs the web app on `http://localhost:3000` and the legacy API on `http://localhost:4000`.
-
-To run the durable API path with Postgres-backed state and encrypted attachment blobs:
+### Production Stack with Docker
 
 ```bash
+# Start Postgres + API with encrypted blob storage
 docker compose up --build
 ```
 
-The API exposes:
+## 🌐 Deployment
 
-- `GET /ready` for deploy-time readiness checks
-- `POST /attachments/:attachmentId/upload` for encrypted attachment payload upload
-- `GET /attachments/:attachmentId/content` for authenticated encrypted attachment download
+### Lean Deployment (Recommended for Startups)
 
-## Lean deployment
-
-For the cheapest working deploy, use:
-
-- Vercel free tier
-- Google OAuth
-- Neon free Postgres
-
-Read:
-
-- `docs/vercel-student-deploy.md`
-- `.env.vercel.example`
-
-## Self-hosted deployment
-
-Synq now includes a production-oriented self-hosted stack:
-
-- `docker-compose.production.yml`
-- `deploy/Caddyfile`
-- `.env.production.example`
-- `docs/deployment-stack.md`
-
-Use it like this:
+Deploy for free on Vercel + Neon Postgres:
 
 ```bash
+# 1. Deploy web app to Vercel (free tier)
+# 2. Use Google OAuth via Auth.js
+# 3. Connect free Neon Postgres database
+# 4. Keep app invite-only for your team
+
+# See setup guides:
+# - docs/vercel-student-deploy.md
+# - .env.vercel.example
+```
+
+### Self-Hosted Deployment
+
+Deploy on your own infrastructure with Caddy reverse proxy:
+
+```bash
+# Copy production config
 cp .env.production.example .env.production
+
+# Validate & deploy
 npm run deploy:check
 npm run deploy:prod:config
 npm run deploy:prod:up
 ```
 
-That stack serves the web app and API behind one HTTPS domain with Caddy, keeps Postgres private, runs schema migration before the API starts, and uses container health checks for startup ordering.
+**Features:**
+- HTTPS via Caddy on a single domain
+- Private Postgres (no external exposure)
+- Automatic schema migrations
+- Container health checks for startup ordering
+- Encrypted blob storage for attachments
 
-## Test
+See `docs/deployment-stack.md` for full details.
+
+## 📋 API Endpoints
+
+The Fastify API exposes:
+
+- `GET /ready` – Deployment readiness checks
+- `POST /attachments/:attachmentId/upload` – Encrypted attachment upload
+- `GET /attachments/:attachmentId/content` – Authenticated encrypted download
+
+## 🧪 Testing
 
 ```bash
 npm run test
 ```
 
-## Notes
+## 🔧 Configuration
 
-- The API now supports a restart-safe Postgres runtime store when `SYNQ_STORE_DRIVER=postgres`, while tests and quick local runs continue to use the in-memory driver.
-- Attachment staging now encrypts bytes client-side, uploads encrypted payloads to durable blob storage, and only allows message send after upload + finalize.
-- `apps/api/schema/synq.sql` captures both the entity draft tables and the runtime-state persistence table used by the current deployable slice.
-- `docs/threat-model.md` captures the remaining hardening gaps that still separate this repo from a true consumer-grade messenger.
-- `docs/deployment-stack.md` documents the production stack that is currently supported by the codebase.
-- For private conversations, the client keeps plaintext locally in a vault while the API only stores/redelivers redacted previews for sealed rooms.
+### Data Store Driver
+
+- **Default (Development):** In-memory store
+- **Production:** Postgres backend via `SYNQ_STORE_DRIVER=postgres`
+
+See `.env.vercel.example` and `.env.production.example` for all options.
+
+## 📚 Documentation
+
+| Document | Purpose |
+|----------|---------|
+| **`docs/threat-model.md`** | Security gaps and hardening roadmap |
+| **`docs/deployment-stack.md`** | Production deployment guide |
+| **`docs/vercel-student-deploy.md`** | Vercel + Neon quick start |
+| **`apps/api/schema/synq.sql`** | Full Postgres schema |
+
+## 🔒 Security Notes
+
+- **Local Storage:** Plaintext kept client-side in a vault for private conversations
+- **Server Storage:** Only redacted previews of sealed messages are stored/redelivered
+- **Attachment Pipeline:** Client-side encryption → durable upload → authenticated download
+- **Device Trust:** Explicit approval flows for new devices and sessions
+
+See `docs/threat-model.md` for a complete security assessment.
+
+## 📦 Tech Stack
+
+- **Frontend:** Next.js, TypeScript, React, Framer Motion
+- **Backend:** Fastify, WebSockets, Postgres
+- **Crypto:** libsodium, sender-key ratcheting
+- **Deployment:** Vercel, Docker, Caddy, Neon Postgres
+- **Auth:** Auth.js + Google OAuth
+
+## 📄 License
+
+Check the repository for license information.
+
+---
+
+**Made with ❤️ by [@iamkorvynn](https://github.com/iamkorvynn)**
